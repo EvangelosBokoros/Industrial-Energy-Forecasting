@@ -25,6 +25,8 @@ data/processed/*
 # Trained models and generated reports
 models/*
 !models/.gitkeep
+!models/ensemble_2_0_model.joblib
+
 reports/*
 !reports/.gitkeep
 !reports/figures/
