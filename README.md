@@ -1,36 +1,57 @@
 # Damavand Energy Forecasting Platform
 
-A production-style machine-learning system for daily industrial active-energy forecasting.
+A production-style machine-learning system for daily industrial active-energy forecasting, independently developed after the completion of a professional Measurement & Verification engagement in the same industrial setting.
 
-Developed during my work with Senerqon for the Damavand industrial forecasting use case, the project covers the complete path from intervention-aware model development to a validated FastAPI service, Docker packaging, operational safeguards, Prometheus metrics, automated tests, and independent clean-machine reproducibility.
-
-This repository is an independent professional portfolio presentation. It is not an official Damavand or Senerqon software release and does not imply endorsement by either organization.
+This repository presents a separate forecasting and MLOps project that I designed and implemented after leaving Senerqon. It uses the curated daily analytical data foundation that I originally created for the Damavand M&V work, but it addresses a different objective, applies different models and validation rules, and delivers a complete forecasting API and release-engineering system.
 
 > **Current status:** release candidate<br>
 > **Official forecasting model:** Version 2.0<br>
 > **Behavioral evaluation:** Version 2.1<br>
 > **API version:** 1.0.0
 
+## Professional project context
+
+During my time at Senerqon, I independently completed the AI-based Measurement & Verification work for the Damavand project.
+
+The client data was originally provided at production-order and batch level, while active-energy consumption was measured daily. I transformed those records into a unified daily analytical dataframe through temporal alignment, daily aggregation and operational feature engineering. I then developed and validated the CatBoost counterfactual baseline model, prepared the technical report, presented the methodology and answered two rounds of reviewer questions.
+
+The accepted M&V analysis estimated the counterfactual energy consumption that would have occurred without the intervention and verified savings of 11.89% against a guaranteed target of 10.10%. Acceptance of the technical submission was a critical milestone in formally closing the wider professional engagement.
+
+After leaving Senerqon, I independently developed the separate forecasting and MLOps project presented in this repository. The forecasting project uses the same curated daily data foundation because the underlying industrial source data had not changed, but it answers a different question and has its own model-development, validation, serving and governance lifecycle.
+
+| Project | Objective | Model and outcome |
+|---|---|---|
+| Professional M&V project | Estimate the counterfactual energy consumption that would have occurred without the intervention and verify achieved savings | Pre-intervention CatBoost baseline; accepted after presentation and two rounds of review; verified 11.89% savings |
+| Independent forecasting project | Predict future daily energy consumption from planned production, operating and calendar inputs | Governed 70/30 Extra Trees–AdaBoost ensemble, FastAPI service, Docker deployment, safeguards, testing and observability |
+
+The two projects share their industrial setting and curated data foundation, but they are separate technical systems with different purposes.
+
+See the [professional M&V case-study summary](CASE_STUDY.md) for the complete chronology and the supporting redacted model report, reviewer Q&A and reference letter.
+
+
 ## Portfolio highlights
 
 | Area | Evidence |
 |---|---|
+| Professional M&V delivery | End-to-end AI baseline model accepted after presentation and two rounds of technical review; verified 11.89% savings against a 10.10% target |
+| Data foundation | Production-order and batch-level records transformed by me through temporal alignment, daily aggregation and operational feature engineering into a unified energy-aligned analytical dataframe|
 | Forecasting problem | Daily industrial active-energy forecasting under a known process intervention |
-| Data design | Approximately 466 chronological daily observations across two operating regimes |
+| Data design | Approximately 466 curated chronological daily observations spanning pre- and post-intervention operating regimes |
 | Official model | Governed 70% post-only Extra Trees and 30% full-history AdaBoost ensemble |
-| Holdout performance | 6.214% MAPE and 1.751% aggregate deviation on the final seven-day test |
-| Behavioral validation | 17 behavioral tests, 27 runtime hard checks, and 8 of 8 directional checks passed |
+| Forecasting performance | Validation: MAE 861.033 kWh and MAPE 4.668%; final holdout: MAE 1,022.456 kWh, MAPE 6.214%, and 1.751% aggregate deviation |
+| Behavioral evaluation | 20 scenarios, 17 tests, 27 runtime hard checks, and 8 of 8 directional checks passed |
 | Serving | FastAPI single and batch inference with shared feature construction |
-| Safeguards | Artifact checksum verification, metadata validation, support-range diagnostics, and branch disagreement |
+| Safeguards | Artifact checksum verification, metadata validation, input-support diagnostics, calendar coverage, and branch disagreement |
 | Operations | Docker packaging, structured logs, Prometheus metrics, and automated container acceptance testing |
-| Reproducibility | Exact reference prediction reproduced on an independent clean machine |
+| Reproducibility | Exact model hash and reference prediction reproduced on an independent clean machine |
 | Automated testing | 60 tests passing on the release candidate |
 
-## End-to-end ownership
 
-Within the scope represented by this repository, I independently owned and completed the full technical delivery.
+## Independent forecasting and MLOps ownership
 
-This was not a narrow modeling contribution or a tutorial reconstruction. I took the project from problem framing and regime-change analysis through model governance, API implementation, testing, containerization, observability, reproducibility validation, and release hardening.
+After completing the original professional M&V work, I independently designed and implemented the separate forecasting and MLOps system represented by this repository.
+
+This was not a narrow modeling contribution or tutorial reconstruction. I took the forecasting project from problem framing and regime-change analysis through model governance, API implementation, testing, containerization, observability, reproducibility validation, and release hardening.
 
 I personally designed and implemented:
 
@@ -47,8 +68,6 @@ I personally designed and implemented:
 - independent clean-machine reproducibility validation;
 - release hardening, repository configuration, and CI preparation.
 
-Senerqon provided the professional project context. The technical work, implementation, validation, and engineering evidence presented in this repository were completed by me.
-
 ## Technology stack
 
 ```text
@@ -63,20 +82,46 @@ Prometheus client
 Git and GitHub Actions
 ```
 
-## Reviewer quick path
+## Reviewer quick paths
 
-A technical reviewer can inspect the project efficiently in this order:
+### Recruiter or hiring manager
+
+1. [`CASE_STUDY.md`](CASE_STUDY.md) — professional M&V delivery, technical acceptance, and relationship between the two projects;
+2. [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) — forecasting purpose, results, governance, and evidence boundaries;
+3. [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) — exact implemented service behavior;
+4. [`docs/validation/clean_machine_acceptance_test.md`](docs/validation/clean_machine_acceptance_test.md) — independent reproducibility evidence.
+
+### Model-development reviewer
+
+1. [`src/train_ensemble.py`](src/train_ensemble.py) — official branch training, 70/30 weight selection, final refitting, evaluation, and artifact creation;
+2. [`src/model_ensemble.py`](src/model_ensemble.py) — official Extra Trees and AdaBoost configurations, ensemble weights, and weighted-prediction logic;
+3. [`src/train.py`](src/train.py) — post-intervention model comparison and development workflow;
+4. [`src/train_full_history.py`](src/train_full_history.py) — full-history branch comparison, evaluation, and artifact generation;
+5. [`src/compare_final_models.py`](src/compare_final_models.py) — component and ensemble comparison evidence;
+6. [`src/stress_test_ensemble.py`](src/stress_test_ensemble.py) — Version 2.1 replay, sensitivity, adversarial, and safeguard evaluation;
+7. [`docs/Modeling_notes.md`](docs/Modeling_notes.md) — complete model-development history, decisions, and rejected alternatives.
+
+### Serving and MLOps reviewer
 
 1. [`src/serving/prediction_service.py`](src/serving/prediction_service.py) — ensemble inference and diagnostics;
-2. [`src/serving/model_loader.py`](src/serving/model_loader.py) — artifact and metadata validation;
-3. [`src/serving/feature_builder.py`](src/serving/feature_builder.py) — shared serving feature construction;
-4. [`src/api/app.py`](src/api/app.py) — API routes, lifecycle, and request handling;
+2. [`src/serving/model_loader.py`](src/serving/model_loader.py) — artifact, checksum, and metadata validation;
+3. [`src/serving/feature_builder.py`](src/serving/feature_builder.py) — shared feature construction;
+4. [`src/api/app.py`](src/api/app.py) — API lifecycle, routes, and request handling;
 5. [`src/api/metrics.py`](src/api/metrics.py) — bounded-label Prometheus instrumentation;
 6. [`tests/`](tests/) — automated unit and integration evidence;
-7. [`scripts/smoke_test_container.ps1`](scripts/smoke_test_container.ps1) — end-to-end container acceptance;
-8. [`docs/Modeling_notes.md`](docs/Modeling_notes.md) — full model-development and governance history.
+7. [`scripts/smoke_test_container.ps1`](scripts/smoke_test_container.ps1) — end-to-end container acceptance.
 
-## Why this project exists
+## Why a separate forecasting system was developed
+
+The original professional M&V model answered a counterfactual question:
+
+> What would energy consumption have been without the intervention?
+
+The independent forecasting project answers a different operational question:
+
+> Given the planned production and operating conditions, what daily energy consumption should be expected next?
+
+The distinction required a separate model-selection, validation, serving, and governance workflow.
 
 The objective is to forecast daily active electrical energy consumption from production, operating, and calendar information.
 
@@ -116,7 +161,19 @@ A 60/40 blend remains documented as a sensitivity challenger. It was not promote
 
 ## Dataset and chronological evaluation
 
-The modeling dataset contains approximately 466 daily observations covering:
+The daily analytical data foundation was originally created by me for the professional M&V project.
+
+The raw client data contained production-order and batch-level records, while active-energy measurements were available at daily resolution. I resolved this mismatch by:
+
+- aggregating production records into one operational record per day;
+- aligning daily production activity with daily active-energy consumption;
+- calculating physically interpretable production, operating-time, Brix, order-complexity, efficiency and calendar features;
+- evaluating and excluding identifiers that were unstable, excessively granular or unsuitable at daily level.
+
+Because the underlying industrial source data had not changed, the independent forecasting project uses the same curated daily dataframe. It applies a separate forecasting objective, chronological split policy, feature-governance process and model-selection workflow.
+
+The forecasting dataset contains approximately 466 daily observations covering:
+
 
 ```text
 2024-06-01 to 2025-10-31
@@ -414,12 +471,6 @@ Confirm the active interpreter:
 python -c "import sys; print(sys.executable)"
 ```
 
-The printed path should end with:
-
-```text
-JMM\.venv\Scripts\python.exe
-```
-
 Start the API:
 
 ```powershell
@@ -603,9 +654,11 @@ requirements-dev.txt         Development and test dependencies
 
 ## Documentation
 
+- [Professional M&V case-study summary](CASE_STUDY.md)
+- [Redacted professional M&V evidence](docs/case_study/)
 - [Detailed modeling notes](docs/Modeling_notes.md)
-- [Model card](docs/MODEL_CARD.md)
-- [API contract](docs/API_CONTRACT.md)
+- [Model Card](docs/MODEL_CARD.md)
+- [API Contract](docs/API_CONTRACT.md)
 - [Independent clean-machine acceptance test](docs/validation/clean_machine_acceptance_test.md)
 
 ## Evidence boundaries
@@ -615,7 +668,7 @@ The project distinguishes between different forms of evidence:
 - chronological validation and holdout testing are the primary generalization evidence;
 - historical replay is representative-profile fit evidence;
 - synthetic scenarios are behavioral diagnostics;
-- the 100-day synthetic batch exercise is integration and warning-system evidence;
+- the 70-operating-day synthetic batch-integration test provides API, Docker, ordering and warning-system evidence; holiday and planned non-operating dates were intentionally excluded;
 - Docker and clean-machine tests are reproducibility and serving evidence;
 - Prometheus metrics demonstrate observability capability, not live production history.
 
@@ -623,22 +676,23 @@ No synthetic result is presented as real forecast accuracy.
 
 ## Known limitations
 
-- The final validation and test windows contain only seven days each.
-- The post-intervention training regime is small.
-- Calendar coverage is limited by the available development period.
-- The model expects production and operating variables to be available as planned or scheduled inputs at forecast time.
-- Outside-range forecasts require operational review.
-- Branch disagreement is not a calibrated uncertainty interval.
-- The repository does not claim live production traffic, long-term uptime, or automated retraining.
-- Accuracy should be re-evaluated as additional post-intervention actual observations accumulate.
+- The post-intervention branch was trained on 30 observations.
+- The chronological validation and final holdout windows contain seven days each.
+- Post-intervention calendar and seasonal coverage remain limited by the available observations.
+- Forecasting assumes that the required production and operating variables are available as planned or scheduled inputs.
+- Forecasts containing tail, outside-range, or unseen-calendar diagnostics require additional operational interpretation.
+- Accuracy, ensemble weights, and support boundaries should be re-evaluated as materially new post-intervention observations become available.
 
-## Intended positioning
+## Project positioning
 
-This repository is best described as:
+This repository presents a complete industrial forecasting and MLOps system:
 
-> A containerized production-style industrial forecasting service with intervention-aware model governance, automated validation, artifact integrity checks, input-support safeguards, operational metrics, and independent reproducibility evidence.
+> A containerized daily energy-forecasting service with regime-aware model governance, chronological validation, automated testing, artifact-integrity controls, operational safeguards, Prometheus observability and independent clean-machine reproducibility.
 
-It is not presented as proof of a large-scale enterprise platform or long-running production deployment.
+Together, the repository and its professional case-study evidence demonstrate two separate capabilities:
+
+- delivery and technical defence of an accepted business-facing AI model;
+- independent development of a production-style forecasting and MLOps system.
 
 ## What this demonstrates about me
 

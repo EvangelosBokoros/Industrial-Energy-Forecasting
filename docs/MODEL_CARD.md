@@ -10,7 +10,7 @@
 **Forecast horizon:** Daily
 **Target:** `active_energy_kWh`
 **Serving status:** FastAPI and Docker implementation complete
-**External CI status:** Workflow configured; first GitHub-hosted run pending publication
+**Continuous integration:** GitHub Actions workflow configured for the Python 3.12 test suite and no-cache Docker acceptance test
 
 The official forecasting system combines two independently developed tree-based regression branches:
 
@@ -34,7 +34,7 @@ Version 2.0 defines the forecasting model and its selected ensemble weights. Ver
 | Serving | Typed FastAPI single and batch inference |
 | Safeguards | Input support, calendar coverage, branch disagreement, warning codes |
 | Artifact governance | Metadata validation and SHA-256 verification before deserialization |
-| Automated evidence | 60 tests, Docker smoke test, 100-record batch integration |
+| Automated evidence | 60 tests, automated Docker smoke test, and 70-operating-day synthetic batch integration test|
 | Reproducibility | Exact model hash and prediction reproduced on an independent clean machine |
 | Observability | Prometheus-compatible aggregate service metrics |
 
@@ -51,9 +51,7 @@ The 70/30 weight was selected by validation MAE within a predefined post-only-do
 
 ## Development ownership and project context
 
-Senerqon provided the professional project context for the Damavand forecasting use case.
-
-Within the technical scope represented by this repository, the portfolio author independently designed and implemented the modeling workflow, validation policy, experiment tracking, ensemble governance, behavioral evaluation, inference service, safeguards, testing, containerization, observability, reproducibility checks, and release hardening.
+Senerqon provided the professional setting and the Damavand industrial use case. I independently designed and implemented the complete forecasting and ML engineering system represented in this repository, including modeling, validation, experiment tracking, ensemble governance, behavioral evaluation, API serving, safeguards, testing, containerization, observability, reproducibility and release hardening.
 
 This model card describes the technical system and its evidence boundaries. It is not an official Damavand or Senerqon product statement.
 
@@ -63,7 +61,7 @@ The model is intended to support:
 
 - daily operational energy forecasting;
 - production and energy planning;
-- expected-consumption baselining;
+- forecast-based operational planning baselines;
 - batch forecasting for planned operating schedules;
 - comparison of forecast energy against later observed energy;
 - operational monitoring through input-range and branch-disagreement warnings.
@@ -87,7 +85,6 @@ The model is not designed for:
 - safety-critical automation without human oversight;
 - direct causal estimation of individual production variables;
 - forecasting from incomplete, invalid, or inconsistent feature inputs;
-- treating branch disagreement as a calibrated confidence interval;
 - unrestricted extrapolation beyond observed operating conditions;
 - permanent use without revalidation as new post-installation data accumulates.
 
@@ -271,11 +268,11 @@ The project deliberately separates different kinds of evidence:
 2. **Bootstrap intervals** describe uncertainty in the seven-day holdout metrics.
 3. **Historical replay** provides representative-profile fit evidence after refitting.
 4. **Synthetic local and adversarial scenarios** provide behavioral and safeguard evidence.
-5. **The 100-record synthetic batch exercise** provides API, ordering, warning-system, and container-integration evidence.
+5. **The 70-operating-day synthetic batch integration test** provides API, ordering, warning-system, and container-integration evidence.
 6. **Docker and clean-machine tests** provide serving and reproducibility evidence.
 7. **Prometheus metrics** demonstrate observability capability, not live accuracy history.
 
-Synthetic scenarios are not treated as observed ground truth, and no synthetic result is reported as a model-accuracy improvement.
+The 70-operating-day synthetic batch test provides ordered-inference, diagnostic-warning, API, and Docker-integration evidence. Holiday and planned non-operating dates were intentionally excluded. Because the records do not include observed future target values, the exercise is not treated as forecasting-accuracy evidence.
 
 ## Official performance
 
@@ -341,7 +338,7 @@ aggregate deviation:    +3,711.760 kWh
 aggregate deviation percentage: +1.560%
 ```
 
-The weekend-moderate and selected high-Brix profiles produced the largest percentage deviations among the eight replay examples. They are monitoring candidates because they identify operating conditions that were less precisely represented than the other selected archetypes.
+The weekend-moderate and selected high-Brix profiles produced the largest percentage deviations among the eight replay examples. These results identify operating conditions that were less precisely represented than the other selected archetypes and therefore require greater care during forecast interpretation.
 
 Replay results are supplementary representative-profile evidence after final refitting. Chronological validation and final holdout testing remain the primary measures of generalization.
 
@@ -402,9 +399,9 @@ The classification is a marginal feature-support check. Scenario design labels s
 ### Directional sensitivity results
 
 ```text
-paired directional checks passed: 8
+paired directional checks passed:  8
 locally flat responses:            0
-diagnostic warnings:               0
+behavioral-evaluation warnings:    0
 ```
 
 The strongest local response occurred for:
@@ -421,7 +418,7 @@ post-only Extra Trees change: +1,263.583 kWh
 full-history AdaBoost change: +3,820.752 kWh
 ```
 
-This profile is the primary local sensitivity hotspot for future monitoring.
+This profile is the primary local sensitivity hotspot identified by the evaluation.
 
 ## Production-intensity diagnostic
 
@@ -568,13 +565,8 @@ The primary limitations are:
 - only 30 post-installation training rows were available for the post-only branch;
 - validation and final test windows contain seven days each;
 - the intervention may have changed the production-energy relationship;
-- the two branches use tree-based models with piecewise-constant response behavior;
-- marginal range checks do not measure the probability of a complete multivariable profile;
 - long-term seasonal stability has not yet been established;
 - the model has not yet been evaluated through continuing live production traffic and delayed actual-value monitoring;
-- operational counters are process-local until scraped by an external monitoring system;
-- no authentication or authorization layer is defined by the application itself;
-- branch disagreement is not calibrated probabilistic uncertainty.
 
 These limitations define the current evidence boundary and the required monitoring plan.
 
@@ -621,7 +613,7 @@ Continue tracking:
 - forecasts near observed prediction extrema;
 - repeated forecasts for unsupported operating conditions.
 
-### Future actual-based accuracy monitoring
+### Monitoring for a continuing operational deployment
 
 When delayed actual energy becomes available, track:
 
@@ -671,20 +663,9 @@ non-root container runtime
 Docker health check
 60 automated tests
 automated Docker smoke testing
-100-record synthetic batch integration
+70-operating-day synthetic batch integration test
 independent clean-machine acceptance
 GitHub Actions workflow configuration
-```
-
-### Pending final publication and release actions
-
-```text
-first GitHub-hosted CI execution
-merge of the approved release branch into main
-final release provenance manifest
-release notes and rollback instructions
-versioned Docker image tag
-v1.0.0 Git tag and GitHub release
 ```
 
 ### Required only for a real continuing production deployment
@@ -700,7 +681,7 @@ documented incident response
 retraining approval workflow
 ```
 
-The separate 100-record synthetic dataset is used only for batch inference, API, Docker, calendar-coverage, warning-system, and integration testing. It remains separate from real chronological performance evaluation.
+The separate synthetic dataset represents 70 operating days, with holiday and planned non-operating dates intentionally excluded. It is used only for batch inference, API, Docker, calendar-coverage, warning-system, and integration testing. It remains separate from the real chronological performance evaluation.
 
 ## Reproducibility and artifacts
 
@@ -743,7 +724,7 @@ Current local result:
 60 passed
 ```
 
-The GitHub Actions workflow runs the Python 3.12 test suite and then the no-cache Docker acceptance test. The workflow is committed; hosted execution remains pending until publication.
+The committed GitHub Actions workflow runs the Python 3.12 test suite followed by the no-cache Docker acceptance test.
 
 ### Independent acceptance evidence
 
@@ -769,7 +750,7 @@ src/stress_test_ensemble.py
 tests/test_stress_test_ensemble.py
 ```
 
-Expected behavioral figures:
+Generated behavioral figures:
 
 ```text
 branch_disagreement_kwh.png
@@ -828,9 +809,8 @@ Approval is conditional on the following interpretation:
 
 - chronological validation and holdout testing remain the primary accuracy evidence;
 - behavioral scenarios and historical replay are supplementary diagnostics;
-- support and disagreement warnings must accompany forecasts;
+- support and disagreement diagnostics must accompany forecasts;
 - outside-range forecasts require additional operational review;
 - model performance, weights, and support boundaries must be revalidated as real post-intervention observations accumulate;
-- a live deployment requires persistent monitoring, actual-value ingestion, security controls, and operational ownership beyond this portfolio release.
 
 The current repository demonstrates end-to-end model governance, serving integrity, reproducibility, testing, and observability without claiming long-running production operation or enterprise-scale infrastructure.

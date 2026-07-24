@@ -14,9 +14,11 @@ The objective is not simply to try many algorithms. The objective is to build a 
 
 This document is the complete decision record for the project rather than a short project summary. It preserves successful experiments, rejected approaches, governance decisions, evidence boundaries, and the later engineering work required to turn the selected model into a reproducible forecasting service.
 
-Senerqon provided the professional project context for the Damavand use case.
+The Damavand industrial setting also includes a separate professional Measurement & Verification project that I completed during my time at Senerqon. For that work, I created the daily analytical data foundation, developed and validated the CatBoost counterfactual baseline model, prepared the technical report, presented the methodology, and answered two rounds of reviewer questions.
 
-Within the technical scope represented by this repository, the portfolio author independently designed and implemented the modeling workflow, validation strategy, experiment tracking, ensemble selection, behavioral evaluation, API, safeguards, tests, Docker packaging, operational metrics, clean-machine verification, release hardening, and documentation.
+After leaving Senerqon, I independently developed the separate forecasting and MLOps project documented in this repository. The two projects share their industrial setting and curated daily data foundation, but they have different objectives, models, validation frameworks, and deliverables.
+
+Within the forecasting project represented by this repository, I independently designed and implemented the modeling workflow, validation strategy, experiment tracking, ensemble selection, behavioral evaluation, API, safeguards, tests, Docker packaging, operational metrics, clean-machine verification, release hardening, and documentation.
 
 ## Executive decision summary
 
@@ -50,8 +52,7 @@ exact artifact hash and reference prediction reproduced
 on an independent clean machine
 
 Release state:
-documentation and CI workflow complete locally;
-public GitHub execution and v1.0.0 release pending
+portfolio release candidate
 ```
 
 ## Reader guide
@@ -909,7 +910,7 @@ Reason:
 
 CatBoost was tested, regularized, and evaluated across feature sets, but the validation evidence did not support selecting it.
 
-This strengthens the project because it shows that advanced models are not accepted automatically. They must earn selection through the validation framework.
+The result confirms that model-family complexity was not used as a selection criterion; candidates were retained only when supported by validation evidence.
 
 ## Modeling Version 0.4 — XGBoost Candidate
 
@@ -1441,9 +1442,7 @@ This means:
 * aggressive hyperparameter optimization is not appropriate for the post-only benchmark
 * post-installation-only rolling validation is not meaningful enough with the current data volume
 
-A rolling-validation prototype was tested but rejected because the available post-installation data was too short to create stable, comparable folds.
-
-This is not a failure of the model. It is a data limitation. The decision not to force rolling validation is part of the modeling discipline.
+The available post-installation data was insufficient to create stable, comparable rolling-validation folds, so rolling validation was not used for model selection.
 
 ## Experiment tracking
 
@@ -1484,7 +1483,7 @@ The result is credible because:
 * the model is not chosen based on post-hoc test tuning
 * bootstrap confidence intervals are reported
 * model limitations are documented clearly
-* rejected models and feature sets are documented rather than hidden
+* rejected models and feature sets are documented explicitly
 
 This is the strongest current model for the real post-installation forecasting benchmark.
 
@@ -1492,7 +1491,7 @@ This is the strongest current model for the real post-installation forecasting b
 
 The post-only model performed strongly on validation and remained competitive on the final test week. Its main strength is that it is trained only on the post-intervention regime, so it directly reflects the current operating conditions.
 
-Because the model is trained on only 30 rows, the result should be treated as a strong current-regime benchmark rather than a permanently final forecasting system. This does not weaken the model; it defines the practical boundary of the available post-installation evidence.
+Because the model is trained on only 30 rows, the result should be treated as a strong current-regime benchmark rather than a permanently final forecasting system. This defines the practical boundary of the available post-installation evidence.
 
 The next modeling step is therefore to test whether additional historical signal can improve stability without losing relevance to the current post-intervention regime.
 
@@ -2024,7 +2023,7 @@ The post-only Extra Trees model remains the strongest single-branch validation m
 
 Instead, the ensemble is treated as a combined forecasting candidate. It slightly worsens validation MAE compared with the post-only champion, but it keeps validation R² above 0.80 and substantially improves final holdout behavior.
 
-This distinction matters because the project does not hide tradeoffs. The ensemble is selected as the official 2.0 ensemble by validation MAE within the constrained ensemble search, while the post-only model remains the best pure post-only validation benchmark.
+ The ensemble is selected as the official 2.0 ensemble by validation MAE within the constrained ensemble search, while the post-only model remains the best pure post-only validation benchmark.
 
 ## Official 2.0 selected ensemble
 
@@ -2239,7 +2238,7 @@ The 60/40 blend is retained as a sensitivity diagnostic because it produced stro
 
 The official Version 2.0 model is the 70/30 post-only/full-history ensemble.
 
-The post-only Extra Trees model remains the strongest single-branch validation model. This is important and is not hidden.
+The post-only Extra Trees model remains the strongest single-branch validation model.
 
 However, the 70/30 ensemble is the strongest current combined forecasting candidate because it preserves strong validation behavior while substantially improving final holdout performance compared with both component models.
 
@@ -2320,7 +2319,7 @@ validation total deviation: 6.325604%
 
 The post-only Extra Trees model has the lowest validation MAE among the compared candidates.
 
-This is important and is not hidden.
+
 
 ```text
 post-only Extra Trees validation MAE: 735.753100
@@ -2349,7 +2348,7 @@ post-only Extra Trees validation total deviation: -1.805594%
 full-history AdaBoost validation total deviation: 6.325604%
 ```
 
-This means the 70/30 ensemble is not the lowest-error validation model overall, but it is the best validation-selected ensemble and the best-calibrated candidate at the aggregate validation-week level.
+This means the 70/30 ensemble is not the lowest-error validation model overall, but it is the best validation-selected ensemble and has the aggregate validation-week deviation closest to zero.
 
 ### Final holdout test comparison
 
@@ -2458,7 +2457,7 @@ Reason:
 
 This makes the 70/30 ensemble the most defensible official forecasting candidate under the current evidence.
 
-It is not selected because it wins every metric. It is selected because it follows the strongest validation-disciplined path.
+The official choice follows the predefined validation-first selection rule rather than the final holdout ranking.
 
 The 60/40 result remains important because it suggests that a larger full-history contribution may improve final-week behavior. As more post-installation data becomes available, ensemble weights should be revalidated and may shift toward a larger full-history contribution.
 
@@ -3277,7 +3276,7 @@ It contains two dependent jobs:
 
 The Docker job runs only after the Python test job succeeds.
 
-The workflow is committed locally. A GitHub-hosted run remains pending because the public remote repository has not yet been created.
+The workflow is committed as part of the release candidate and is configured to run automatically on GitHub pushes, pull requests, and manual execution.
 
 ### API documentation and acceptance testing completed
 
@@ -3484,7 +3483,7 @@ The endpoint reports aggregated service behavior:
 
 The metrics do not store raw industrial inputs, individual forecasts, or observed energy values.
 
-The metrics demonstrate that the deployed service can be monitored operationally. They do not represent live production history or live accuracy monitoring.
+The metrics demonstrate that the running containerized service can be monitored operationally. They do not represent live production history or live accuracy monitoring.
 
 ## Portfolio documentation completed
 
@@ -3492,6 +3491,8 @@ The recruiter-facing and technical documentation package is complete:
 
 ```text
 README.md
+CASE_STUDY.md
+docs/case_study/
 docs/MODEL_CARD.md
 docs/API_CONTRACT.md
 docs/Modeling_notes.md
@@ -3514,6 +3515,7 @@ The README provides:
 - screenshots of the MLflow experiment history and Swagger API
 - limitations, evidence boundaries, and usage notice
 ```
+The professional M&V case-study materials document the earlier business-facing delivery separately from the independent forecasting and MLOps project.
 
 The technical documents remain more detailed than the README:
 
@@ -3532,54 +3534,60 @@ the complete chronological model-development and engineering record
 
 This documentation improves reviewability without replacing executable evidence. Claims in the README are linked to code, tests, artifacts, or detailed technical records.
 
-## 100-day synthetic Docker batch test completed
+## 70-operating-day synthetic batch-integration test completed
 
-The separate generated dataset contains 100 consecutive synthetic daily records:
+The separate synthetic dataset represents 70 operating days spanning 2025-11-19 through 2026-02-08. Holiday and planned non-operating dates were intentionally excluded rather than represented as artificial operating records.
 
-```text
-start date: 2025-11-01
-end date:   2026-02-08
-record count: 100
-```
+The dataset was converted into the public API request format and processed through the Dockerized batch endpoint.
 
-It was converted into the public API request format and processed through the Dockerized batch endpoint.
-
-The completed result was:
+The completed API response confirmed:
 
 ```text
-response records: 100
+response records: 70
 
 operational-range classifications:
-43 inside typical development range
-31 development-distribution tail
-26 outside observed range
+26 inside typical development range
+24 development-distribution tail
+20 outside observed range
 
 branch-disagreement classifications:
 29 low
 9 moderate
-62 high
+32 high
 
 calendar coverage:
-100 records contained unseen calendar values
+70 records contained unseen calendar values
+```
+
+The returned warning diagnostics were consistent with those classifications:
+
+```text
+UNSEEN_CALENDAR_VALUE:             70
+HIGH_BRANCH_DISAGREEMENT:          32
+DEVELOPMENT_DISTRIBUTION_TAIL:     24
+OUTSIDE_OBSERVED_RANGE:            20
+MODERATE_BRANCH_DISAGREEMENT:       9
 ```
 
 The test confirmed:
 
 ```text
 - HTTP 200
-- response count equals 100
+- response count equals 70
 - prediction order matches request order
-- every prediction is finite
+- every returned prediction is finite
 - operational-range classifications are populated
 - calendar-coverage classifications are populated
-- warning codes are populated where appropriate
+- warning codes are populated where applicable
 - branch-disagreement diagnostics are populated
-- the Docker container remains healthy after the batch request
+- the Dockerized service remains operational after the batch request
 ```
 
-This is API-integration, warning-system, calendar-coverage, and behavioral evidence.
+The 70-operating-day synthetic batch-integration test provides API, Docker, ordering, calendar-coverage, warning-system, and diagnostic evidence.
 
-It is not forecast-accuracy evidence because the records are synthetic. Synthetic energy values are not treated as observed ground truth and are not used to report MAE, RMSE, MAPE, R², or model improvement.
+It is not forecast-accuracy evidence because the synthetic operating records do not have corresponding real future observed `active_energy_kWh` values. The results are therefore not used to report MAE, RMSE, MAPE, R², or model improvement.
+
+The synthetic dataset remains separate from the real chronological validation, final holdout, and historical-replay evidence.
 
 ## Current project point
 
@@ -3598,21 +3606,20 @@ Manual API and Swagger acceptance testing:    complete
 Local Docker image build:                     complete
 Local Docker runtime validation:              complete
 Automated Docker smoke testing:               complete
-100-day Docker batch integration test:        complete
+70-operating-day synthetic batch integration: complete
 Independent clean-machine acceptance test:    complete
 README and architecture:                      complete
+Professional M&V case-study package:          complete
 Model card:                                   complete
 API contract:                                 complete
 Modeling notes:                               complete
 Portfolio screenshots:                        complete
 Publication and privacy review:               complete
-GitHub Actions workflow:                      configured locally
-GitHub-hosted CI execution:                    pending publication
-Public remote Git repository:                 not configured
-Merge, provenance, and v1.0.0 release:         pending
+GitHub Actions workflow:                      configured
+Portfolio release state:                      release candidate
 ```
 
-The system should therefore be described as:
+The system is therefore described as:
 
 ```text
 A containerized production-style industrial forecasting service
@@ -3621,42 +3628,7 @@ artifact integrity checks, input-support safeguards, operational
 metrics, and independent reproducibility evidence.
 ```
 
-It should not yet be described as:
-
-```text
-- deployed to a live production environment
-- proven stable through long-term live traffic
-- connected to automated delayed actual-value ingestion
-- performing live accuracy or drift monitoring
-- verified by a completed GitHub-hosted continuous-integration run
-- a large-scale enterprise MLOps platform
-```
-
-## Remaining project roadmap
-
-The remaining work is now limited to publication and release execution:
-
-```text
-1. Create the empty public GitHub repository without an auto-generated
-   README, .gitignore, or licence.
-
-2. Add the remote and push the approved release-hardening branch.
-
-3. Run the GitHub Actions workflow and resolve only genuine
-   environment-specific failures.
-
-4. Review the rendered README, Mermaid architecture, screenshots,
-   links, repository description, and topics on GitHub.
-
-5. Merge the approved release branch into main.
-
-6. Create the final provenance manifest connecting the release tag,
-   final Git commit, model Version 2.0, SHA-256, MLflow run,
-   feature schemas, weights, dependencies, and evaluation periods.
-
-7. Add release notes and rollback instructions, tag the Docker image,
-   create the v1.0.0 Git tag, and publish the GitHub release.
-```
+## Publication and privacy boundary
 
 The technical privacy review found no raw dataset, secrets, private keys, MLflow database, runtime logs, personal machine paths, or confidential files in committed history.
 
@@ -3668,7 +3640,7 @@ Those capabilities would become relevant only if the service were connected to c
 
 ## Updated engineering conclusion
 
-The original modeling goal has been achieved, and the deployment-oriented extension is now materially complete at the local and reproducibility-validation level.
+The original modeling goal has been achieved, and the separate forecasting and MLOps system is complete for the portfolio release candidate.
 
 The repository demonstrates:
 
@@ -3691,21 +3663,10 @@ The repository demonstrates:
 - Docker packaging
 - healthy non-root container execution
 - automated Docker smoke testing
-- 100-day synthetic batch integration testing
+- 70-operating-day synthetic batch-integration testing
 - independent clean-machine reproducibility evidence
-```
-
-The strongest remaining gaps are no longer modeling, serving, Docker, testing, observability, reproducibility, documentation, or privacy-review gaps.
-
-They are final publication and release-execution tasks:
-
-```text
-public remote repository
-first GitHub-hosted CI run
-merge to main
-release provenance manifest
-release notes and rollback instructions
-v1.0.0 tagging and GitHub release
+- GitHub Actions continuous-integration configuration
+- professional M&V case-study evidence separated from the forecasting system
 ```
 
 The official ensemble should continue to be treated as a validated and defensible industrial energy-forecasting candidate under the available evidence, not as a permanently final model.

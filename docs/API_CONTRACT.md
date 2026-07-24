@@ -239,7 +239,7 @@ This route is intentionally excluded from the interactive OpenAPI/Swagger schema
 **Content type:**
 
 ```text
-text/plain; version=0.0.4
+text/plain; version=0.0.4; charset=utf-8
 ```
 
 The endpoint exposes the following project metrics:
@@ -248,7 +248,7 @@ The endpoint exposes the following project metrics:
 |---|---|---|
 | `jmm_http_requests_total` | Counter | HTTP requests by method, bounded route label, and status code |
 | `jmm_http_request_duration_seconds` | Histogram | Request latency by method and bounded route label |
-| `jmm_prediction_records_total` | Counter | Successfully returned prediction records by single or batch request type |
+| `jmm_prediction_records_total` | Counter | Successfully returned prediction records by endpoint (single or batch) |
 | `jmm_operational_range_total` | Counter | Predictions by operational-support classification |
 | `jmm_calendar_coverage_total` | Counter | Predictions by calendar-coverage classification |
 | `jmm_branch_disagreement_total` | Counter | Predictions by branch-disagreement classification |
@@ -258,7 +258,7 @@ Example:
 
 ```text
 jmm_http_requests_total{method="POST",path="/v1/predict",status_code="200"} 1.0
-jmm_prediction_records_total{request_type="single"} 1.0
+jmm_prediction_records_total{endpoint="single"} 1.0
 jmm_branch_disagreement_total{status="moderate"} 1.0
 ```
 
@@ -660,24 +660,46 @@ Each item in `predictions` has the same schema as the single-prediction response
       "date": "2025-10-10",
       "modeling_version": "2.0",
       "target": "active_energy_kWh",
-      "prediction_kwh": 123456.78,
-      "post_only_prediction_kwh": 121000.0,
-      "full_history_prediction_kwh": 129189.27,
-      "branch_disagreement_kwh": 8189.27,
-      "branch_disagreement_pct": 6.55,
-      "branch_disagreement_status": "low",
+      "prediction_kwh": 18722.361227887366,
+      "post_only_prediction_kwh": 19397.6906138889,
+      "full_history_prediction_kwh": 17146.592660550457,
+      "branch_disagreement_kwh": 2251.0979533384416,
+      "branch_disagreement_pct": 12.319836382797288,
+      "branch_disagreement_status": "moderate",
       "operational_range_status": "inside_typical_development_range",
       "calendar_coverage_status": "represented",
       "tail_features": [],
       "outside_range_features": [],
       "unseen_calendar_features": [],
-      "warning_codes": []
+      "warning_codes": [
+        "MODERATE_BRANCH_DISAGREEMENT"
+      ]
+    },
+    {
+      "date": "2025-10-11",
+      "modeling_version": "2.0",
+      "target": "active_energy_kWh",
+      "prediction_kwh": 18698.338878442926,
+      "post_only_prediction_kwh": 19363.372971825414,
+      "full_history_prediction_kwh": 17146.592660550457,
+      "branch_disagreement_kwh": 2216.780311274957,
+      "branch_disagreement_pct": 12.1434258996354,
+      "branch_disagreement_status": "moderate",
+      "operational_range_status": "outside_observed_range",
+      "calendar_coverage_status": "represented",
+      "tail_features": [],
+      "outside_range_features": [
+        "yield_ratio_actual_over_nominal"
+      ],
+      "unseen_calendar_features": [],
+      "warning_codes": [
+        "OUTSIDE_OBSERVED_RANGE",
+        "MODERATE_BRANCH_DISAGREEMENT"
+      ]
     }
   ]
 }
 ```
-
-Prediction values are illustrative.
 
 ### Ordering guarantee
 
@@ -820,15 +842,15 @@ The release candidate has been checked through:
 manual Swagger and endpoint acceptance
 no-cache Docker image build
 automated Docker smoke testing
-100-record synthetic batch integration
+70-operating-day synthetic batch-integration test
 independent clean-machine reconstruction and execution
 ```
 
 The Docker acceptance script verifies health, readiness, model version, target, the approved reference prediction, ordered batch consistency, operational metrics, and cleanup.
 
-The 100-record synthetic exercise is integration and diagnostic evidence only. It is not forecast-accuracy evidence.
+The 70-operating-day synthetic batch-integration test is integration and diagnostic evidence only. Holiday and planned non-operating dates were intentionally excluded. It is not forecast-accuracy evidence.
 
-The GitHub Actions workflow is committed and configured to run the Python test suite followed by the Docker acceptance test. External CI execution requires the repository to be pushed to GitHub.
+The committed GitHub Actions workflow runs the Python 3.12 test suite followed by the no-cache Docker acceptance test.
 
 ## Operational guarantees
 
