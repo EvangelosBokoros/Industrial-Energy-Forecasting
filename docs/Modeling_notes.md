@@ -1821,34 +1821,594 @@ The 10000-trial result highlights the main modeling limitation of the project: w
 | 1.2     | Full-history | VIF-reduced | Gradient Boosting | 2974.9578      | 1464.5123 | 0.4646  | 0.5426                 | Better test behavior, weaker validation      |
 | 1.3     | Full-history | VIF-reduced | AdaBoost          | 1329.8433      | 1473.4256 | 0.5238  | -4.4112                | Strongest full-history validation candidate  |
 
-## Current Conclusion
+# 2.0 Post-Only and Full-History Ensemble Diagnostic
 
-The post-only model remains a strong benchmark because it is trained only on the post-intervention regime. The full-history approach initially struggled, but improved through tuning, VIF-reduced features, and advanced boosting.
+## Purpose
 
-The 1.3 AdaBoost model is the strongest full-history validation candidate so far. It substantially improves full-history validation MAE and achieves competitive test performance, but still shows aggregate underprediction on the test week.
+After developing separate post-only and full-history forecasting candidates, the next step was to test whether their predictions could be combined.
 
-The main project limitation is the small post-intervention evaluation window. With only 7 validation days and 7 test days in the official post-intervention split, model comparison is sensitive to short-term variation. This is why the project documents not only model scores, but also uncertainty, validation discipline, and diagnostic experiments.
+The post-only branch provides the strongest current-regime validation model. It is trained only on the post-installation operating period, so it is directly aligned with the target forecasting regime.
 
-## Next Planned Experiments
+The full-history branch provides a broader historical training sample. Although pre-intervention behavior may not fully match the current operating regime, the full-history model may still capture production-energy relationships that remain useful after the intervention.
 
-The next modeling steps are:
+Version 2.0 therefore tests a simple prediction-level ensemble between the two strongest modeling branches:
 
-1. Post-only and full-history ensemble
-   Test whether combining the post-only champion and full-history champion improves stability.
+```text
+post-only champion:
+0.5 full feature set + Extra Trees
 
-2. Regime-aware full-history diagnostic
-   Add intervention-aware features such as `is_post_installation` and possibly `days_since_intervention` to test whether full-history data becomes more useful when the model is explicitly told that the operating regime changed.
+full-history champion:
+1.3 vif_auto_full_history feature set + AdaBoost
+```
 
-3. Pre-only transfer diagnostic
-   Train models only on pre-intervention data and evaluate transfer performance on the full post-intervention period. This will test whether the old production-energy relationship generalizes to the new regime.
+The purpose of the ensemble is not to add unnecessary complexity. The purpose is to test whether current-regime specificity and broader historical signal can be combined to improve final forecasting stability.
 
-4. Final model comparison
-   Compare post-only, full-history, ensemble, regime-aware, and transfer-diagnostic candidates under clearly stated selection rules.
+## Ensemble design
 
-5. Deployment packaging
-   Package the final selected model with an API, Docker, tests, and CI.
+The ensemble uses a weighted average of the two component model predictions:
 
-6. Scenario stress testing
-   Use synthetic production scenarios only as stress tests and sensitivity checks, not as evidence of real-world predictive accuracy.
+```text
+ensemble_prediction =
+    post_only_weight * post_only_prediction
+    + (1 - post_only_weight) * full_history_prediction
+```
 
+A simple weighted average is used instead of stacking or a meta-model.
 
+Stacking is not appropriate at this stage because the post-intervention validation window contains only 7 days. Training a second-level model on such a small validation sample would create a high risk of overfitting.
+
+The weighted ensemble is therefore a deliberately conservative approach.
+
+## Candidate weights
+
+Because the forecasting target is the current post-installation regime, the ensemble weights are intentionally biased toward the post-only model.
+
+The predefined candidate weights were:
+
+```text
+60% post-only / 40% full-history
+70% post-only / 30% full-history
+```
+
+These weights were chosen before final selection because they keep the post-only model as the dominant signal while still allowing the full-history model to contribute useful historical structure.
+
+The 60/40 blend represents a more balanced ensemble.
+
+The 70/30 blend places stronger emphasis on the current post-installation regime.
+
+## Selection principle
+
+The ensemble uses the same validation and final holdout test windows as the earlier post-only and full-history experiments.
+
+The ensemble weight is selected using validation MAE within the predefined candidate-weight range.
+
+The final test period is not used to choose the ensemble weight. It is used only after selection to evaluate final held-out behavior and compare the selected ensemble against its component models.
+
+This keeps the selection rule consistent with the rest of the project:
+
+```text
+validation set:
+select the ensemble weight
+
+test set:
+evaluate the selected ensemble once as a final holdout check
+```
+
+## Validation weight search
+
+The validation weight search selected the 70/30 blend.
+
+```text
+70% post-only / 30% full-history:
+validation MAE: 861.033368
+validation RMSE: 1036.787105
+validation R²: 0.809018
+validation MAPE: 4.668177%
+validation total deviation: 0.633766%
+
+60% post-only / 40% full-history:
+validation MAE: 902.793458
+validation RMSE: 1168.095110
+validation R²: 0.757579
+validation MAPE: 4.876714%
+validation total deviation: 1.446885%
+```
+
+The 70/30 ensemble was selected because it had the lower validation MAE within the predefined constrained ensemble search.
+
+## Validation component comparison
+
+The validation comparison against the component models was:
+
+```text
+post-only Extra Trees:
+validation MAE: 735.753100
+validation RMSE: 940.317618
+validation R²: 0.842905
+validation MAPE: 4.042565%
+validation total deviation: -1.805594%
+
+selected 70/30 ensemble:
+validation MAE: 861.033368
+validation RMSE: 1036.787105
+validation R²: 0.809018
+validation MAPE: 4.668177%
+validation total deviation: 0.633766%
+
+full-history AdaBoost:
+validation MAE: 1329.843269
+validation RMSE: 2339.647091
+validation R²: 0.027445
+validation MAPE: 7.114680%
+validation total deviation: 6.325604%
+```
+
+This result is important.
+
+The post-only Extra Trees model remains the strongest single-branch validation model by MAE. The ensemble is not presented as beating the post-only model on validation MAE.
+
+Instead, the ensemble is treated as a combined forecasting candidate. It slightly worsens validation MAE compared with the post-only champion, but it keeps validation R² above 0.80 and substantially improves final holdout behavior.
+
+This distinction matters because the project does not hide tradeoffs. The ensemble is selected as the official 2.0 ensemble by validation MAE within the constrained ensemble search, while the post-only model remains the best pure post-only validation benchmark.
+
+## Official 2.0 selected ensemble
+
+The official 2.0 ensemble is:
+
+```text
+70% post-only Extra Trees
+30% full-history AdaBoost
+```
+
+The selected ensemble combines:
+
+```text
+current-regime signal:
+post-only Extra Trees
+
+broader historical signal:
+full-history AdaBoost
+```
+
+The selected model artifact is saved as:
+
+```text
+models/ensemble_2_0_model.joblib
+```
+
+The experiment report is saved as:
+
+```text
+reports/ensemble_2_0_training_report.xlsx
+```
+
+The feature metadata is saved as:
+
+```text
+reports/metadata/ensemble_2_0_features.txt
+```
+
+The diagnostic figures are saved in:
+
+```text
+reports/figures/ensemble_2_0
+```
+
+## Final holdout test comparison
+
+After the 70/30 ensemble weight was selected using validation MAE, the final model was evaluated on the held-out test period.
+
+```text
+selected 70/30 ensemble:
+test MAE: 1022.455700
+test RMSE: 1282.703944
+test R²: 0.754668
+test MAPE: 6.213821%
+test total deviation: 1.751245%
+
+full-history AdaBoost:
+test MAE: 1473.425642
+test RMSE: 1787.026591
+test R²: 0.523828
+test MAPE: 8.245912%
+test total deviation: -4.411208%
+
+post-only Extra Trees:
+test MAE: 1492.347207
+test RMSE: 1964.461965
+test R²: 0.424575
+test MAPE: 9.461457%
+test total deviation: 4.392297%
+```
+
+The selected 70/30 ensemble substantially improves final holdout behavior compared with both individual component models.
+
+Compared with the post-only Extra Trees model:
+
+```text
+test MAE improvement:
+1492.347207 → 1022.455700
+
+test R² improvement:
+0.424575 → 0.754668
+
+test total deviation improvement:
+4.392297% → 1.751245%
+```
+
+Compared with the full-history AdaBoost model:
+
+```text
+test MAE improvement:
+1473.425642 → 1022.455700
+
+test R² improvement:
+0.523828 → 0.754668
+
+test total deviation improvement:
+-4.411208% → 1.751245%
+```
+
+This makes the 70/30 ensemble the strongest current combined forecasting candidate for the available dataset.
+
+## Bootstrap confidence intervals
+
+Bootstrap 95% confidence intervals for the selected 70/30 ensemble on the final test period were:
+
+```text
+test MAE CI: [507.5856, 1542.1063]
+test RMSE CI: [745.0319, 1689.8226]
+test MAPE CI: [2.7120, 10.1456]
+test total deviation CI: [-3.3546, 7.7958]
+```
+
+The confidence intervals remain wide because the final test window contains only 7 days.
+
+This does not invalidate the model. It defines the boundary of the available evidence and supports the decision to report uncertainty transparently.
+
+## 60/40 ensemble sensitivity diagnostic
+
+A 60/40 ensemble was also evaluated as part of the predefined candidate-weight search.
+
+The 60/40 blend produced weaker validation MAE than the 70/30 blend:
+
+```text
+70/30 validation MAE: 861.033368
+60/40 validation MAE: 902.793458
+```
+
+For that reason, the 60/40 blend was not selected as the official 2.0 ensemble.
+
+However, the 60/40 blend produced stronger final holdout behavior:
+
+```text
+60/40 test MAE: 931.150631
+60/40 test RMSE: 1136.238515
+60/40 test R²: 0.807496
+60/40 test MAPE: 5.442291%
+60/40 test total deviation: 0.870895%
+```
+
+Bootstrap 95% confidence intervals for the 60/40 sensitivity result were:
+
+```text
+test MAE CI: [477.2923, 1422.2330]
+test RMSE CI: [605.8246, 1557.0020]
+test MAPE CI: [2.7694, 8.1761]
+test total deviation CI: [-3.8837, 5.8896]
+```
+
+This result is documented as a sensitivity diagnostic.
+
+It suggests that a slightly larger full-history contribution may improve final-week behavior. However, selecting 60/40 as the official model would mean choosing the ensemble weight based on the final test period rather than validation MAE.
+
+The 60/40 result is therefore retained as useful evidence for future revalidation, not as the official selected model.
+
+As more post-installation data becomes available, the preferred ensemble weight should be re-evaluated. Future evidence may support a stronger full-history contribution, but the current official 2.0 decision remains the validation-selected 70/30 ensemble.
+
+## 2.0 interpretation
+
+Version 2.0 shows that the full-history model contains useful signal even though it is weaker than the post-only model on validation by itself.
+
+The full-history AdaBoost model performs poorly as a standalone validation model compared with post-only Extra Trees. However, when blended conservatively with the post-only model, it improves final holdout behavior substantially.
+
+This is the main modeling insight from the ensemble experiment:
+
+```text
+The full-history model is not strong enough to replace the post-only model,
+but it can improve the forecast when used as a secondary signal.
+```
+
+The selected 70/30 ensemble preserves the post-only model as the dominant current-regime signal while using the full-history model as a stabilizing secondary component.
+
+The result is especially encouraging because the selected ensemble keeps strong performance across both validation and test:
+
+```text
+70/30 validation R²: 0.809018
+70/30 test R²: 0.754668
+```
+
+The 60/40 sensitivity result also keeps strong validation and test R²:
+
+```text
+60/40 validation R²: 0.757579
+60/40 test R²: 0.807496
+```
+
+This supports the interpretation that the ensemble approach is more stable than either component model alone on the final holdout period.
+
+## 2.0 decision
+
+Decision:
+
+```text
+Select the 70/30 post-only/full-history ensemble as the official Version 2.0 ensemble.
+```
+
+Reason:
+
+The 70/30 ensemble was selected by validation MAE within the predefined post-only-dominant ensemble search. It keeps the post-only model as the dominant current-regime signal, adds a controlled full-history contribution, and substantially improves final holdout performance compared with both component models.
+
+The 60/40 blend is retained as a sensitivity diagnostic because it produced stronger final holdout behavior, but it is not selected as the official model because its advantage appears on the final test period rather than the validation selection period.
+
+## Summary Up To 2.0
+
+| Version | Scope | Feature Set | Selected Model | Validation MAE | Validation R² | Test MAE | Test R² | Test Total Deviation % | Interpretation |
+| ------- | ----- | ----------- | -------------- | -------------- | ------------- | -------- | ------- | ---------------------- | -------------- |
+| 0.5 | Post-only | Full | Extra Trees | 735.7531 | 0.8429 | 1492.3472 | 0.4246 | 4.3923 | Strongest single-branch post-only validation model |
+| 1.3 | Full-history | VIF-reduced | AdaBoost | 1329.8433 | 0.0274 | 1473.4256 | 0.5238 | -4.4112 | Strongest full-history validation candidate |
+| 2.0 | Ensemble | Full + VIF-reduced | 70/30 weighted ensemble | 861.0334 | 0.8090 | 1022.4557 | 0.7547 | 1.7512 | Official validation-selected ensemble |
+| 2.0 sensitivity | Ensemble | Full + VIF-reduced | 60/40 weighted ensemble | 902.7935 | 0.7576 | 931.1506 | 0.8075 | 0.8709 | Strong sensitivity result, not official |
+
+## Current modeling conclusion
+
+The official Version 2.0 model is the 70/30 post-only/full-history ensemble.
+
+The post-only Extra Trees model remains the strongest single-branch validation model. This is important and is not hidden.
+
+However, the 70/30 ensemble is the strongest current combined forecasting candidate because it preserves strong validation behavior while substantially improving final holdout performance compared with both component models.
+
+The result is credible because:
+
+* the component models were selected before the ensemble experiment
+* the ensemble weights were predefined before final selection
+* the official ensemble weight was selected by validation MAE
+* the final test period was not used to choose the official ensemble weight
+* the final test period shows substantial improvement over both component models
+* bootstrap confidence intervals are reported
+* the 60/40 result is documented as sensitivity rather than selected post-hoc
+* limitations from the short validation and test windows are documented clearly
+
+The selected 70/30 ensemble is therefore the strongest current forecasting candidate for the available Damavand dataset.
+
+It should be treated as a validated and defensible model within the available post-intervention evidence, not as a permanently final model. As more post-installation data becomes available, the ensemble weights should be revalidated.
+
+## Offline champion-challenger comparison
+
+After selecting the official Version 2.0 ensemble, an offline champion-challenger comparison was created.
+
+This is not a live A/B test. No model is deployed in production and no live traffic is being split between models.
+
+The correct framing is:
+
+```text
+offline champion-challenger comparison
+```
+
+The purpose is to compare the official champion against meaningful alternatives under the same validation and final holdout test windows.
+
+The comparison includes:
+
+```text
+Champion:
+2.0 70/30 post-only/full-history ensemble
+
+Challengers:
+0.5 post-only Extra Trees
+1.3 full-history AdaBoost
+2.0 60/40 ensemble sensitivity
+```
+
+The goal is not to claim that the official champion wins every metric. The goal is to check whether the selected model remains defensible when compared against strong alternatives under the same evaluation periods.
+
+### Validation comparison
+
+```text
+0.5 post-only Extra Trees:
+validation MAE: 735.753100
+validation RMSE: 940.317618
+validation R²: 0.842905
+validation MAPE: 4.042565%
+validation total deviation: -1.805594%
+
+2.0 70/30 official ensemble:
+validation MAE: 861.033368
+validation RMSE: 1036.787105
+validation R²: 0.809018
+validation MAPE: 4.668177%
+validation total deviation: 0.633766%
+
+2.0 60/40 sensitivity ensemble:
+validation MAE: 902.793458
+validation RMSE: 1168.095110
+validation R²: 0.757579
+validation MAPE: 4.876714%
+validation total deviation: 1.446885%
+
+1.3 full-history AdaBoost:
+validation MAE: 1329.843269
+validation RMSE: 2339.647091
+validation R²: 0.027445
+validation MAPE: 7.114680%
+validation total deviation: 6.325604%
+```
+
+The post-only Extra Trees model has the lowest validation MAE among the compared candidates.
+
+This is important and is not hidden.
+
+```text
+post-only Extra Trees validation MAE: 735.753100
+70/30 ensemble validation MAE:        861.033368
+```
+
+The 70/30 ensemble does not beat the post-only model on validation daily error.
+
+However, the post-only validation advantage does not fully carry over to the final holdout test period. This is why the comparison is interpreted using both validation discipline and final holdout behavior.
+
+R² is reported as a diagnostic metric, but it is not used as the primary selection argument. With only 7 validation days and 7 test days, validation R² can look strong without guaranteeing the same behavior on the next held-out week.
+
+Within the predefined ensemble-weight search, the 70/30 blend beats the 60/40 blend on validation MAE:
+
+```text
+70/30 validation MAE: 861.033368
+60/40 validation MAE: 902.793458
+```
+
+The 70/30 ensemble also has the best validation total deviation:
+
+```text
+70/30 ensemble validation total deviation:        0.633766%
+60/40 ensemble validation total deviation:        1.446885%
+post-only Extra Trees validation total deviation: -1.805594%
+full-history AdaBoost validation total deviation: 6.325604%
+```
+
+This means the 70/30 ensemble is not the lowest-error validation model overall, but it is the best validation-selected ensemble and the best-calibrated candidate at the aggregate validation-week level.
+
+### Final holdout test comparison
+
+```text
+2.0 60/40 sensitivity ensemble:
+test MAE: 931.150631
+test RMSE: 1136.238515
+test R²: 0.807496
+test MAPE: 5.442291%
+test total deviation: 0.870895%
+
+2.0 70/30 official ensemble:
+test MAE: 1022.455700
+test RMSE: 1282.703944
+test R²: 0.754668
+test MAPE: 6.213821%
+test total deviation: 1.751245%
+
+1.3 full-history AdaBoost:
+test MAE: 1473.425642
+test RMSE: 1787.026591
+test R²: 0.523828
+test MAPE: 8.245912%
+test total deviation: -4.411208%
+
+0.5 post-only Extra Trees:
+test MAE: 1492.347207
+test RMSE: 1964.461965
+test R²: 0.424575
+test MAPE: 9.461457%
+test total deviation: 4.392297%
+```
+
+The 70/30 official ensemble substantially improves final holdout behavior compared with both individual component models.
+
+Compared with the post-only Extra Trees model:
+
+```text
+test MAE:
+1492.347207 → 1022.455700
+
+test R²:
+0.424575 → 0.754668
+
+test MAPE:
+9.461457% → 6.213821%
+
+test total deviation:
+4.392297% → 1.751245%
+```
+
+Compared with the full-history AdaBoost model:
+
+```text
+test MAE:
+1473.425642 → 1022.455700
+
+test R²:
+0.523828 → 0.754668
+
+test MAPE:
+8.245912% → 6.213821%
+
+test total deviation:
+-4.411208% → 1.751245%
+```
+
+This is the main reason the ensemble is valuable. It gives up some validation MAE compared with the post-only champion, but it improves the final holdout test week substantially.
+
+The 60/40 ensemble produced the strongest final holdout result:
+
+```text
+60/40 test MAE: 931.150631
+60/40 test MAPE: 5.442291%
+60/40 test total deviation: 0.870895%
+```
+
+However, it is retained as a sensitivity diagnostic rather than promoted to the official champion.
+
+The reason is that the 60/40 advantage appears on the final test period. Selecting it as the official model would mean choosing the ensemble weight based on the test set, which would weaken the validation-first selection discipline.
+
+### Champion-challenger interpretation
+
+The offline champion-challenger comparison supports the 70/30 ensemble as the official champion.
+
+The post-only Extra Trees model remains the strongest validation model by daily error. However, its validation advantage does not fully translate to the final holdout test week.
+
+The 70/30 ensemble is therefore not presented as the best model by validation MAE. It is presented as the most defensible official champion because it follows the predefined selection rule and improves final holdout behavior compared with both component models.
+
+The official decision is:
+
+```text
+Select the 70/30 ensemble as the official Version 2.0 champion.
+```
+
+Reason:
+
+```text
+- the component models were selected before the ensemble experiment
+- the ensemble weights were predefined
+- 70/30 beats 60/40 on validation MAE within the ensemble search
+- 70/30 has the best validation total deviation
+- the final test period confirms that 70/30 improves strongly over both component models
+- 60/40 is documented as sensitivity rather than selected post-hoc from the test set
+```
+
+This makes the 70/30 ensemble the most defensible official forecasting candidate under the current evidence.
+
+It is not selected because it wins every metric. It is selected because it follows the strongest validation-disciplined path.
+
+The 60/40 result remains important because it suggests that a larger full-history contribution may improve final-week behavior. As more post-installation data becomes available, ensemble weights should be revalidated and may shift toward a larger full-history contribution.
+
+## Next planned experiments
+
+The next modeling and engineering steps are:
+
+1. Synthetic scenario stress testing
+
+   Use plausible synthetic production days to inspect whether the selected ensemble behaves reasonably under low-production, high-production, weekend, weekday, high-order, low-order, high-brix, low-brix, and unusual operating-intensity scenarios.
+
+   Synthetic scenarios are used only for behavioral stress testing and sensitivity analysis. They are not used as evidence of real-world predictive accuracy.
+
+2. Final model card
+
+   Document the selected model, intended use, training data, features, validation strategy, limitations, uncertainty intervals, and retraining plan.
+
+3. API and deployment packaging
+
+   Package the selected model behind a prediction API using FastAPI.
+
+4. Docker, tests, and CI
+
+   Add Docker packaging, unit tests, prediction-schema validation, and GitHub Actions CI.
+
+5. Monitoring and retraining design
+
+   Define practical monitoring checks and retraining triggers for future post-installation data.
