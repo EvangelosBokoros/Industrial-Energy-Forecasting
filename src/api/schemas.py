@@ -93,3 +93,22 @@ class ModelInfoResponse(BaseModel):
     ensemble_type: str
     target: str
     components: dict[str, ModelComponentResponse]
+
+class BatchPredictionRequest(BaseModel):
+     """Collection of daily records submitted for batch prediction."""
+
+     model_config = ConfigDict(extra="forbid")
+
+     records: list[PredictionRequest] = Field(
+        min_length=1,
+        max_length=500,
+    )
+
+
+class BatchPredictionResponse(BaseModel):
+    """Ordered predictions returned for a batch request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    count: int = Field(ge=1, le=500)
+    predictions: list[PredictionResponse]

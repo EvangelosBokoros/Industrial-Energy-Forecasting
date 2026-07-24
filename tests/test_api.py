@@ -188,3 +188,84 @@ def test_model_information_endpoint_returns_active_ensemble(
         "month",
         "year",
     ]
+
+
+def test_batch_prediction_returns_ordered_results(client):
+    first_record = VALID_PAYLOAD.copy()
+
+    second_record = VALID_PAYLOAD.copy()
+    second_record["date"] = "2025-10-30"
+    second_record["total_kg"] = 180000
+    second_record["total_nominal_kg"] = 181000
+    second_record["total_brix_units"] = 1800000
+
+    response = client.post(
+        "/v1/predict/batch",
+        json={
+            "records": [
+                first_record,
+                second_record,
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["count"] == 2
+    assert len(body["predictions"]) == 2
+
+    assert body["predictions"][0]["date"] == (
+        first_record["date"]
+    )
+    assert body["predictions"][1]["date"] == (
+        second_record["date"]
+    )
+
+    for prediction in body["predictions"]:
+        assert prediction["modeling_version"] == "2.0"
+        assert prediction["target"] == "active_energy_kWh"
+        assert math.isfinite(prediction["prediction_kwh"])
+
+
+def test_batch_prediction_rejects_empty_records(client):
+    response = client.post(
+        "/v1/predict/batch",
+        json={"records": []},
+    )
+
+    assert response.status_code == 422
+
+
+def test_batch_prediction_rejects_invalid_nested_record(client):
+    valid_record = VALID_PAYLOAD.copy()
+
+    invalid_record = VALID_PAYLOAD.copy()
+    invalid_record["total_hours"] = -1
+
+    response = client.post(
+        "/v1/predict/batch",
+        json={
+            "records": [
+                valid_record,
+                invalid_record,
+            ]
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_batch_prediction_rejects_more_than_500_records(client):
+    records = [
+        VALID_PAYLOAD.copy()
+        for _ in range(501)
+    ]
+
+    response = client.post(
+        "/v1/predict/batch",
+        json={"records": records},
+    )
+
+    assert response.status_code == 422

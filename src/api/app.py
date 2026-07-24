@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 
 from src.api.schemas import (
+    BatchPredictionRequest,
+    BatchPredictionResponse,
     ModelComponentResponse,
     ModelInfoResponse,
     PredictionRequest,
@@ -13,7 +15,10 @@ from src.api.schemas import (
     ReadinessResponse,
     RootResponse,
 )
-from src.serving.prediction_service import PredictionService
+from src.serving.prediction_service import (
+    PredictionResult,
+    PredictionService,
+)
 
 
 @asynccontextmanager
@@ -38,6 +43,36 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+
+def _build_prediction_response(
+    payload: PredictionRequest,
+    result: PredictionResult,
+    metadata: dict[str, object],
+) -> PredictionResponse:
+    """Build the public API response for one prediction."""
+
+    return PredictionResponse(
+        date=payload.date,
+        modeling_version=str(metadata["modeling_version"]),
+        target=str(metadata["target_column"]),
+        prediction_kwh=result.prediction_kwh,
+        post_only_prediction_kwh=(
+            result.post_only_prediction_kwh
+        ),
+        full_history_prediction_kwh=(
+            result.full_history_prediction_kwh
+        ),
+        branch_disagreement_kwh=(
+            result.branch_disagreement_kwh
+        ),
+        branch_disagreement_pct=(
+            result.branch_disagreement_pct
+        ),
+        branch_disagreement_status=(
+            result.branch_disagreement_status
+        ),
+    )
 
 
 @app.get(
@@ -134,26 +169,46 @@ def predict(
         payload.model_dump(mode="python")
     )
 
+    return _build_prediction_response(
+        payload=payload,
+        result=result,
+        metadata=service.model_bundle.metadata,
+    )
+
+
+@app.post(
+    "/v1/predict/batch",
+    response_model=BatchPredictionResponse,
+)
+def predict_batch(
+    payload: BatchPredictionRequest,
+    request: Request,
+) -> BatchPredictionResponse:
+    """
+    Generate ordered forecasts for between 1 and 500 daily records.
+    """
+
+    service: PredictionService = (
+        request.app.state.prediction_service
+    )
     metadata = service.model_bundle.metadata
 
-    return PredictionResponse(
-        date=payload.date,
-        modeling_version=metadata["modeling_version"],
-        target=metadata["target_column"],
-        prediction_kwh=result.prediction_kwh,
-        post_only_prediction_kwh=(
-            result.post_only_prediction_kwh
-        ),
-        full_history_prediction_kwh=(
-            result.full_history_prediction_kwh
-        ),
-        branch_disagreement_kwh=(
-            result.branch_disagreement_kwh
-        ),
-        branch_disagreement_pct=(
-            result.branch_disagreement_pct
-        ),
-        branch_disagreement_status=(
-            result.branch_disagreement_status
-        ),
+    predictions: list[PredictionResponse] = []
+
+    for record in payload.records:
+        result = service.predict(
+            record.model_dump(mode="python")
+        )
+
+        predictions.append(
+            _build_prediction_response(
+                payload=record,
+                result=result,
+                metadata=metadata,
+            )
+        )
+
+    return BatchPredictionResponse(
+        count=len(predictions),
+        predictions=predictions,
     )
