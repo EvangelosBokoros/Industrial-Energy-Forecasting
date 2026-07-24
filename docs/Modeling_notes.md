@@ -10,21 +10,96 @@ The work uses a real industrial energy dataset from the Damavand case and is str
 
 The objective is not simply to try many algorithms. The objective is to build a reproducible modeling process where each modeling decision is tested, compared, rejected, improved, or retained based on evidence.
 
+## Document purpose and technical ownership
+
+This document is the complete decision record for the project rather than a short project summary. It preserves successful experiments, rejected approaches, governance decisions, evidence boundaries, and the later engineering work required to turn the selected model into a reproducible forecasting service.
+
+Senerqon provided the professional project context for the Damavand use case.
+
+Within the technical scope represented by this repository, the portfolio author independently designed and implemented the modeling workflow, validation strategy, experiment tracking, ensemble selection, behavioral evaluation, API, safeguards, tests, Docker packaging, operational metrics, clean-machine verification, release hardening, and documentation.
+
+## Executive decision summary
+
+```text
+Official forecasting model:
+Version 2.0
+70% post-only Extra Trees
+30% full-history AdaBoost
+
+Official post-selection evaluation:
+Version 2.1
+Behavioral Scenario Evaluation and Synthetic Stress Test
+
+Primary selection rule:
+chronological validation-first selection
+
+Validation MAPE:
+4.668177%
+
+Final holdout MAPE:
+6.213821%
+
+Serving state:
+FastAPI and Docker implementation complete
+
+Automated test state:
+60 passed
+
+Reproducibility state:
+exact artifact hash and reference prediction reproduced
+on an independent clean machine
+
+Release state:
+documentation and CI workflow complete locally;
+public GitHub execution and v1.0.0 release pending
+```
+
+## Reader guide
+
+The document is organized as a chronological engineering record:
+
+```text
+Versions 0.x:
+post-intervention baselines, feature diagnostics, and small-data candidates
+
+Versions 1.x:
+full-history challengers and controlled optimization
+
+Version 2.0:
+official constrained ensemble selection
+
+Version 2.1:
+historical replay, behavioral scenarios, local sensitivity,
+adversarial evaluation, and branch disagreement
+
+Engineering implementation:
+artifact governance, FastAPI, testing, Docker, metrics,
+clean-machine reproducibility, CI preparation, and release readiness
+```
+
+For a rapid review, read the executive decision summary, Version 2.0, Version 2.1, and the final engineering implementation section before using the earlier versions as detailed supporting history.
+
 This project demonstrates:
 
-* time-based model validation
-* reproducible data preprocessing
-* feature-set management
+* intervention-aware, time-based model validation
+* reproducible data preprocessing and feature-set management
 * model comparison across baseline, linear, regularized, robust, and tree-based methods
-* model rejection based on validation evidence
+* model rejection based on validation evidence rather than model popularity
+* constrained ensemble selection and champion-challenger governance
 * MLflow experiment tracking
-* diagnostic reporting
-* bootstrap uncertainty intervals
-* clear documentation of limitations
+* diagnostic reporting and bootstrap uncertainty intervals
+* behavioral scenario evaluation and synthetic stress testing
+* model artifact integrity verification
+* FastAPI single-record and batch serving
+* input-support and branch-disagreement safeguards
+* automated Python and Docker validation
+* independent clean-machine reproducibility testing
+* Prometheus-compatible operational metrics
+* explicit evidence boundaries and documented limitations
 
 ## Why the first modeling phase uses only the post-installation period
 
-The broader Damavand case includes an intervention that may have changed the relationship between production activity and energy consumption. The intervention/installation event occurred on 2025-09-12. This creates a data-regime problem: 
+The broader Damavand case includes an intervention that may have changed the relationship between production activity and energy consumption. The intervention/installation event occurred on 2025-09-12. This creates a data-regime problem:
 
 * Pre-intervention data provides more historical training examples and may still capture underlying production–energy relationships that remain valid after the intervention.
 * Post-intervention data is more representative of the current operating regime.
@@ -3033,19 +3108,606 @@ test:       7 days
 
 The model and ensemble weights should be revalidated as additional real post-installation observations become available.
 
-## Next project steps
+## Engineering implementation progress after Version 2.1
 
-The modeling and post-selection evaluation phase is complete.
+The modeling and post-selection evaluation phase remains complete.
 
-The next step is to create the final model card covering intended use, model architecture, data regimes, features, validation strategy, performance, replay evidence, behavioral findings, limitations, unsupported uses, monitoring requirements, and retraining triggers.
+The project has progressed from an offline modeling repository into a locally validated, production-style forecasting service with artifact verification, automated tests, Docker packaging, operational metrics, and independent clean-machine reproducibility evidence.
 
-After the model card, the official ensemble should be packaged behind a FastAPI prediction service with validated single-row and batch endpoints.
+### Final model governance and serving artifacts
 
-The service should then be containerized with Docker and supported by automated API, integration, and schema-validation tests.
+The official forecasting model remains:
 
-GitHub Actions should run the complete unit, API, and integration test suite automatically.
+```text
+Version 2.0
 
-The separate 100-day synthetic dataset may later be used for batch-inference, API, Docker, calendar-coverage, and warning-system testing. It should remain separate from the real chronological performance evaluation.
+70% post-only Extra Trees
+30% full-history AdaBoost
+```
 
-The final engineering phase should define monitoring for input drift, operational-range status, component disagreement, prediction distributions, delayed actual-error metrics, and retraining triggers.
+The official post-selection behavioral evaluation remains:
 
+```text
+Version 2.1
+
+Behavioral scenario evaluation
+Local sensitivity analysis
+Synthetic stress testing
+```
+
+The model card has been finalized and documents intended use, model architecture, data regimes, features, validation strategy, performance, evidence hierarchy, behavioral evaluation, unsupported uses, implemented serving controls, limitations, monitoring status, retraining triggers, artifact integrity, and release boundaries.
+
+The API contract has also been finalized to cover the machine-facing `/metrics` endpoint, request correlation, deterministic reference fixtures, artifact integrity, batch behavior, privacy boundaries, and release-candidate acceptance criteria.
+
+The production-serving artifacts are:
+
+```text
+models/ensemble_2_0_model.joblib
+config/serving/model_metadata.json
+config/serving/input_reference.json
+```
+
+The input reference contains the post-installation development profile used to classify operational requests as typical, distribution-tail, or outside the observed range.
+
+### Release hardening completed
+
+The serving release was strengthened with:
+
+```text
+- the official model artifact tracked in Git
+- SHA-256 verification before Joblib deserialization
+- validation of model version, target, component classes, weights,
+  feature names, and feature order
+- validation that ensemble weights sum to one
+- repository-relative serving-reference paths
+- explicit Pytest discovery configuration
+- Git line-ending and binary-file configuration
+- an automated Docker smoke-test script
+```
+
+The approved model artifact is:
+
+```text
+models/ensemble_2_0_model.joblib
+```
+
+Its SHA-256 checksum is:
+
+```text
+A4A7945CA5E77387BAB3854597F380F8445B35849EF3B640B340507B26112282
+```
+
+The loader verifies this checksum before deserializing the model. Startup fails if the artifact does not match the approved serving metadata.
+
+Relevant release-hardening commits include:
+
+```text
+396fa88 Track official serving model artifact
+9e09683 Add model artifact integrity verification
+dc9b9e1 Make input reference path repository-relative
+b6d7d5d Document independent clean-machine acceptance test
+5d5c2c8 Add automated Docker smoke test
+c3eaded Add Prometheus operational metrics
+09f65a2 Add GitHub Actions CI workflow
+```
+
+### FastAPI prediction service completed
+
+The official ensemble has been packaged behind a FastAPI service.
+
+The implemented endpoints are:
+
+```text
+GET  /
+GET  /health
+GET  /ready
+GET  /metrics
+GET  /v1/model
+POST /v1/predict
+POST /v1/predict/batch
+```
+
+The service supports:
+
+```text
+- strict Pydantic request validation
+- deterministic feature construction and feature ordering
+- single-record prediction
+- ordered batch prediction for 1 to 500 records
+- official 70/30 ensemble prediction
+- component-level predictions
+- absolute and relative branch disagreement
+- operational-range classification
+- calendar-coverage classification
+- distribution-tail, outside-range, and unseen-calendar details
+- machine-readable warning codes
+- request correlation IDs
+- request timing
+- structured JSON request logs
+- safe internal-error responses
+- startup validation of the model and serving references
+- Prometheus-compatible operational metrics
+```
+
+The API response separates three concepts:
+
+```text
+prediction:
+the official energy forecast
+
+branch disagreement:
+the difference between the two component-model forecasts
+
+input support:
+whether the submitted operating and calendar values are represented
+by the post-installation development reference
+```
+
+Branch disagreement is not presented as calibrated probabilistic uncertainty.
+
+The batch endpoint preserves input order and accepts between 1 and 500 records.
+
+### GitHub Actions workflow configured
+
+The repository includes:
+
+```text
+.github/workflows/ci.yml
+```
+
+The workflow is configured for pushes, pull requests, and manual execution.
+
+It contains two dependent jobs:
+
+```text
+1. Python 3.12 tests
+   - check out the repository
+   - install pinned development dependencies
+   - run the complete Pytest suite
+
+2. Docker serving smoke test
+   - build the image without using the Docker cache
+   - start an isolated container
+   - verify health and readiness
+   - reproduce the approved reference prediction
+   - verify ordered batch consistency
+   - verify Prometheus metrics
+   - remove the temporary container
+```
+
+The Docker job runs only after the Python test job succeeds.
+
+The workflow is committed locally. A GitHub-hosted run remains pending because the public remote repository has not yet been created.
+
+### API documentation and acceptance testing completed
+
+The service includes OpenAPI and Swagger documentation.
+
+The documented API contract covers:
+
+```text
+- endpoint purposes
+- request schemas
+- response schemas
+- validation behavior
+- warning-code interpretation
+- model architecture
+- input-support diagnostics
+- branch-disagreement diagnostics
+- request IDs
+- health and readiness behavior
+- batch limits and ordering guarantees
+```
+
+Manual acceptance tests were completed for:
+
+```text
+- health
+- readiness
+- model metadata
+- typical supported prediction
+- distribution-tail prediction
+- outside-range prediction
+- batch prediction
+- invalid request returning HTTP 422
+- operational metrics
+```
+
+The automated test suite currently reports:
+
+```text
+60 passed
+```
+
+The metrics-specific tests verify:
+
+```text
+- GET /metrics is available
+- HTTP request counters are updated
+- successful prediction counters are updated
+- operational-support counters are updated
+- branch-disagreement counters are updated
+- warning-code counters are updated
+```
+
+The remaining warnings are known dependency deprecation warnings and are not test failures.
+
+### Docker containerization completed
+
+The FastAPI service has been containerized with Docker.
+
+The Docker implementation consists of:
+
+```text
+Dockerfile
+.dockerignore
+requirements-serving.txt
+```
+
+The image uses:
+
+```text
+python:3.12-slim
+```
+
+The serving image contains only the serving dependencies, API source, official model artifact, model metadata, and input reference.
+
+Training and experimentation tools such as MLflow, Optuna, XGBoost, CatBoost, Matplotlib, reports, datasets, tests, and the Windows virtual environment are excluded from the runtime image.
+
+The container:
+
+```text
+- starts Uvicorn on port 8000
+- maps a host port to container port 8000
+- runs as the non-root Linux user app
+- includes a Docker health check against GET /health
+- validates the prediction service during application startup
+```
+
+The final container validation confirmed:
+
+```text
+Docker status: healthy
+GET /health: HTTP 200
+GET /ready: HTTP 200
+POST /v1/predict: HTTP 200
+POST /v1/predict/batch: HTTP 200
+GET /metrics: HTTP 200
+container user: app, not root
+```
+
+The approved reference request returns approximately:
+
+```text
+date: 2025-10-31
+official prediction: 18424.134074 kWh
+post-only prediction: 18971.651823 kWh
+full-history prediction: 17146.592661 kWh
+branch disagreement: moderate
+operational range: inside typical development range
+calendar coverage: contains unseen calendar values
+```
+
+The Docker image itself is not stored in Git. Git stores the files required to reproduce it.
+
+### Automated Docker smoke testing completed
+
+The repository includes:
+
+```text
+scripts/smoke_test_container.ps1
+```
+
+The script automatically:
+
+```text
+- verifies Docker engine availability
+- builds the serving image
+- starts a temporary container
+- waits for API readiness
+- checks health and readiness
+- verifies model version and target
+- verifies the approved reference prediction
+- verifies batch ordering and single/batch consistency
+- verifies operational metrics
+- removes the temporary container even after failure
+```
+
+The completed smoke test reported:
+
+```text
+Docker smoke test PASSED.
+Reference prediction: 18424.13407399847 kWh
+Batch records validated: 2
+```
+
+This is serving, integration, and reproducibility evidence. It is not additional forecast-accuracy evidence.
+
+### Independent clean-machine acceptance completed
+
+The repository was exported as a Git bundle and cloned on a separate Windows computer that had not been used for development.
+
+The independent acceptance test confirmed:
+
+```text
+- clean repository reconstruction from committed history
+- required serving files present
+- exact model SHA-256 match
+- no-cache Docker image build
+- healthy container startup
+- GET /health returned HTTP 200
+- GET /ready returned the correct model version and target
+- the approved reference prediction was reproduced exactly
+- single and batch prediction consistency was deterministic
+- container request logs recorded successful API calls
+```
+
+The independent machine reproduced the approved reference result:
+
+```text
+prediction: 18424.13407399847 kWh
+post-only prediction: 18971.65182261905 kWh
+full-history prediction: 17146.592660550457 kWh
+branch disagreement: 1825.0591620685918 kWh
+branch disagreement status: moderate
+operational range: inside typical development range
+calendar coverage: contains unseen calendar values
+```
+
+The acceptance procedure is documented in:
+
+```text
+docs/validation/clean_machine_acceptance_test.md
+```
+
+This is portability and reproducibility evidence, not forecast-accuracy evidence.
+
+### Operational metrics completed
+
+The API exposes Prometheus-compatible metrics through:
+
+```text
+GET /metrics
+```
+
+The endpoint reports aggregated service behavior:
+
+```text
+- HTTP request totals by method, route, and status
+- HTTP request-duration histograms
+- successful prediction records by single or batch endpoint
+- operational-range status counts
+- calendar-coverage status counts
+- branch-disagreement status counts
+- warning-code counts
+```
+
+The metrics do not store raw industrial inputs, individual forecasts, or observed energy values.
+
+The metrics demonstrate that the deployed service can be monitored operationally. They do not represent live production history or live accuracy monitoring.
+
+## Portfolio documentation completed
+
+The recruiter-facing and technical documentation package is complete:
+
+```text
+README.md
+docs/MODEL_CARD.md
+docs/API_CONTRACT.md
+docs/Modeling_notes.md
+docs/validation/clean_machine_acceptance_test.md
+assets/mlflow-runs.png
+assets/swagger-api.png
+```
+
+The README provides:
+
+```text
+- an executive project summary
+- explicit end-to-end technical ownership
+- recruiter-facing portfolio highlights
+- architecture and reviewer navigation
+- modeling and holdout evidence
+- MLflow provenance
+- API and Docker instructions
+- automated validation and CI design
+- screenshots of the MLflow experiment history and Swagger API
+- limitations, evidence boundaries, and usage notice
+```
+
+The technical documents remain more detailed than the README:
+
+```text
+MODEL_CARD.md:
+model governance, intended use, risks, evidence hierarchy,
+monitoring, reproducibility, and release boundaries
+
+API_CONTRACT.md:
+request and response behavior, diagnostics, error handling,
+artifact integrity, operational metrics, and acceptance criteria
+
+Modeling_notes.md:
+the complete chronological model-development and engineering record
+```
+
+This documentation improves reviewability without replacing executable evidence. Claims in the README are linked to code, tests, artifacts, or detailed technical records.
+
+## 100-day synthetic Docker batch test completed
+
+The separate generated dataset contains 100 consecutive synthetic daily records:
+
+```text
+start date: 2025-11-01
+end date:   2026-02-08
+record count: 100
+```
+
+It was converted into the public API request format and processed through the Dockerized batch endpoint.
+
+The completed result was:
+
+```text
+response records: 100
+
+operational-range classifications:
+43 inside typical development range
+31 development-distribution tail
+26 outside observed range
+
+branch-disagreement classifications:
+29 low
+9 moderate
+62 high
+
+calendar coverage:
+100 records contained unseen calendar values
+```
+
+The test confirmed:
+
+```text
+- HTTP 200
+- response count equals 100
+- prediction order matches request order
+- every prediction is finite
+- operational-range classifications are populated
+- calendar-coverage classifications are populated
+- warning codes are populated where appropriate
+- branch-disagreement diagnostics are populated
+- the Docker container remains healthy after the batch request
+```
+
+This is API-integration, warning-system, calendar-coverage, and behavioral evidence.
+
+It is not forecast-accuracy evidence because the records are synthetic. Synthetic energy values are not treated as observed ground truth and are not used to report MAE, RMSE, MAPE, R², or model improvement.
+
+## Current project point
+
+The project is now at the following stage:
+
+```text
+Offline model development:                    complete
+Version 2.0 ensemble selection:               complete
+Version 2.1 behavioral evaluation:            complete
+Model artifact integrity verification:        complete
+FastAPI single and batch prediction:          complete
+Input-support and warning diagnostics:        complete
+Prometheus operational metrics:               complete
+Automated test suite:                         complete — 60 passed
+Manual API and Swagger acceptance testing:    complete
+Local Docker image build:                     complete
+Local Docker runtime validation:              complete
+Automated Docker smoke testing:               complete
+100-day Docker batch integration test:        complete
+Independent clean-machine acceptance test:    complete
+README and architecture:                      complete
+Model card:                                   complete
+API contract:                                 complete
+Modeling notes:                               complete
+Portfolio screenshots:                        complete
+Publication and privacy review:               complete
+GitHub Actions workflow:                      configured locally
+GitHub-hosted CI execution:                    pending publication
+Public remote Git repository:                 not configured
+Merge, provenance, and v1.0.0 release:         pending
+```
+
+The system should therefore be described as:
+
+```text
+A containerized production-style industrial forecasting service
+with experiment tracking, model governance, automated validation,
+artifact integrity checks, input-support safeguards, operational
+metrics, and independent reproducibility evidence.
+```
+
+It should not yet be described as:
+
+```text
+- deployed to a live production environment
+- proven stable through long-term live traffic
+- connected to automated delayed actual-value ingestion
+- performing live accuracy or drift monitoring
+- verified by a completed GitHub-hosted continuous-integration run
+- a large-scale enterprise MLOps platform
+```
+
+## Remaining project roadmap
+
+The remaining work is now limited to publication and release execution:
+
+```text
+1. Create the empty public GitHub repository without an auto-generated
+   README, .gitignore, or licence.
+
+2. Add the remote and push the approved release-hardening branch.
+
+3. Run the GitHub Actions workflow and resolve only genuine
+   environment-specific failures.
+
+4. Review the rendered README, Mermaid architecture, screenshots,
+   links, repository description, and topics on GitHub.
+
+5. Merge the approved release branch into main.
+
+6. Create the final provenance manifest connecting the release tag,
+   final Git commit, model Version 2.0, SHA-256, MLflow run,
+   feature schemas, weights, dependencies, and evaluation periods.
+
+7. Add release notes and rollback instructions, tag the Docker image,
+   create the v1.0.0 Git tag, and publish the GitHub release.
+```
+
+The technical privacy review found no raw dataset, secrets, private keys, MLflow database, runtime logs, personal machine paths, or confidential files in committed history.
+
+The repository is intended to be publicly visible for professional review without an open-source licence. Public visibility allows inspection, cloning, and GitHub platform forking, but no broad reuse licence is granted.
+
+Live actual-value ingestion, automated retraining, cloud infrastructure, Kubernetes, a feature store, and a production database are not required for this portfolio release.
+
+Those capabilities would become relevant only if the service were connected to continuing real operations and a justified live deployment environment.
+
+## Updated engineering conclusion
+
+The original modeling goal has been achieved, and the deployment-oriented extension is now materially complete at the local and reproducibility-validation level.
+
+The repository demonstrates:
+
+```text
+- time-aware and intervention-aware model development
+- validation-disciplined model selection
+- post-only and full-history model branches
+- a documented 70/30 ensemble
+- behavioral and synthetic stress testing
+- model governance through a model card
+- MLflow experiment traceability
+- artifact checksum and metadata validation
+- strict FastAPI serving
+- ordered batch inference
+- input-support and branch-disagreement diagnostics
+- structured request logging
+- Prometheus operational metrics
+- 60 automated tests
+- API contract and Swagger acceptance testing
+- Docker packaging
+- healthy non-root container execution
+- automated Docker smoke testing
+- 100-day synthetic batch integration testing
+- independent clean-machine reproducibility evidence
+```
+
+The strongest remaining gaps are no longer modeling, serving, Docker, testing, observability, reproducibility, documentation, or privacy-review gaps.
+
+They are final publication and release-execution tasks:
+
+```text
+public remote repository
+first GitHub-hosted CI run
+merge to main
+release provenance manifest
+release notes and rollback instructions
+v1.0.0 tagging and GitHub release
+```
+
+The official ensemble should continue to be treated as a validated and defensible industrial energy-forecasting candidate under the available evidence, not as a permanently final model.
+
+Its performance, ensemble weights, and support boundaries should be revalidated as additional real post-installation observations become available.

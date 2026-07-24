@@ -4,10 +4,12 @@
 
 **API route version:** `v1`
 **Application version:** `1.0.0`
-**Schema version:** `1.0`  
-**Forecasting model:** `2.0_ensemble_70_30`  
-**Behavioral evaluation:** `2.1`  
+**Schema version:** `1.0`
+**Forecasting model:** `2.0_ensemble_70_30`
+**Behavioral evaluation:** `2.1`
 **Target:** `active_energy_kWh`
+**Contract status:** Release candidate
+**Serving implementation:** Complete locally and container-validated
 
 ## Purpose
 
@@ -23,6 +25,24 @@ The service uses the official weighted ensemble:
 Every prediction also includes component-model disagreement, operational development-support, calendar-coverage, and warning-code diagnostics.
 
 Diagnostics do not block prediction generation. They describe how closely the request resembles the model-development data and whether the two model branches disagree.
+
+## Contract at a glance
+
+| Item | Contract |
+|---|---|
+| Forecast unit | One daily `active_energy_kWh` point forecast |
+| Official ensemble | 70% post-only Extra Trees, 30% full-history AdaBoost |
+| Single inference | `POST /v1/predict` |
+| Batch inference | `POST /v1/predict/batch`, 1–500 ordered records |
+| Model readiness | Startup-validated model artifact and serving reference |
+| Artifact integrity | SHA-256 verified before Joblib deserialization |
+| Request correlation | `X-Request-ID` on every response |
+| Operational diagnostics | Input support, calendar coverage, branch disagreement, warning codes |
+| Observability | Prometheus-compatible aggregate metrics at `GET /metrics` |
+| Automated evidence | 60 Python tests and a no-cache Docker acceptance script |
+| Privacy boundary | No request payloads, raw features, forecasts, or actuals in metrics |
+
+This contract describes the implemented service behavior. It does not claim authentication, live production traffic, persistent monitoring history, delayed actual-value ingestion, or automated retraining.
 
 ## Base URL
 
@@ -61,6 +81,7 @@ Content-Type: application/json
 | `GET` | `/` | Service information and endpoint navigation |
 | `GET` | `/health` | Confirm that the web application is running |
 | `GET` | `/ready` | Confirm that the model and serving reference loaded successfully |
+| `GET` | `/metrics` | Return Prometheus-compatible aggregate operational metrics |
 | `GET` | `/v1/model` | Return public metadata for the active ensemble |
 | `POST` | `/v1/predict` | Generate one daily prediction |
 | `POST` | `/v1/predict/batch` | Generate between 1 and 500 ordered predictions |
@@ -205,6 +226,77 @@ Returns public information about the active ensemble.
 
 ---
 
+## `GET /metrics`
+
+Returns Prometheus-compatible text exposition for aggregate service monitoring.
+
+This route is intentionally excluded from the interactive OpenAPI/Swagger schema because it is a machine-facing scrape endpoint rather than a prediction-consumer operation.
+
+### Successful response
+
+**Status:** `200 OK`
+
+**Content type:**
+
+```text
+text/plain; version=0.0.4
+```
+
+The endpoint exposes the following project metrics:
+
+| Metric | Type | Meaning |
+|---|---|---|
+| `jmm_http_requests_total` | Counter | HTTP requests by method, bounded route label, and status code |
+| `jmm_http_request_duration_seconds` | Histogram | Request latency by method and bounded route label |
+| `jmm_prediction_records_total` | Counter | Successfully returned prediction records by single or batch request type |
+| `jmm_operational_range_total` | Counter | Predictions by operational-support classification |
+| `jmm_calendar_coverage_total` | Counter | Predictions by calendar-coverage classification |
+| `jmm_branch_disagreement_total` | Counter | Predictions by branch-disagreement classification |
+| `jmm_warning_codes_total` | Counter | Machine-readable warning codes returned by successful predictions |
+
+Example:
+
+```text
+jmm_http_requests_total{method="POST",path="/v1/predict",status_code="200"} 1.0
+jmm_prediction_records_total{request_type="single"} 1.0
+jmm_branch_disagreement_total{status="moderate"} 1.0
+```
+
+### Label-cardinality control
+
+Known routes use a fixed, bounded route label.
+
+Unknown paths are grouped under:
+
+```text
+__unmatched__
+```
+
+The service does not use arbitrary incoming URLs as metric labels.
+
+### Privacy boundary
+
+The metrics do not contain:
+
+```text
+raw request payloads
+individual production values
+individual forecasts
+observed energy values
+personal data
+client identifiers
+```
+
+Only aggregate counts, classifications, HTTP status information, and request-duration distributions are exposed.
+
+### Persistence boundary
+
+Metric state is held in the running API process. Counters reset when the process restarts.
+
+A production monitoring platform such as Prometheus would scrape and retain time-series history externally. The current endpoint demonstrates instrumentation capability; it does not claim retained live production history or actual-value accuracy monitoring.
+
+---
+
 ## `POST /v1/predict`
 
 Generates one daily active-energy forecast.
@@ -213,7 +305,7 @@ Generates one daily active-energy forecast.
 
 ```json
 {
-  "date": "2025-10-10",
+  "date": "2025-10-31",
   "total_kg": 190741.0,
   "total_nominal_kg": 190631.01,
   "total_brix_units": 1931393.0,
@@ -270,27 +362,34 @@ The same engineered values are reused for the post-only model, the full-history 
 
 **Status:** `200 OK`
 
-The numerical values below are illustrative.
+The response below is the approved deterministic reference fixture for the tracked Version 2.0 artifact.
 
 ```json
 {
-  "date": "2025-10-10",
+  "date": "2025-10-31",
   "modeling_version": "2.0",
   "target": "active_energy_kWh",
-  "prediction_kwh": 123456.78,
-  "post_only_prediction_kwh": 121000.0,
-  "full_history_prediction_kwh": 129189.27,
-  "branch_disagreement_kwh": 8189.27,
-  "branch_disagreement_pct": 6.55,
-  "branch_disagreement_status": "low",
+  "prediction_kwh": 18424.13407399847,
+  "post_only_prediction_kwh": 18971.65182261905,
+  "full_history_prediction_kwh": 17146.592660550457,
+  "branch_disagreement_kwh": 1825.0591620685918,
+  "branch_disagreement_pct": 10.106023635334983,
+  "branch_disagreement_status": "moderate",
   "operational_range_status": "inside_typical_development_range",
-  "calendar_coverage_status": "represented",
+  "calendar_coverage_status": "contains_unseen_calendar_values",
   "tail_features": [],
   "outside_range_features": [],
-  "unseen_calendar_features": [],
-  "warning_codes": []
+  "unseen_calendar_features": [
+    "week_of_year=44"
+  ],
+  "warning_codes": [
+    "UNSEEN_CALENDAR_VALUE",
+    "MODERATE_BRANCH_DISAGREEMENT"
+  ]
 }
 ```
+
+The reference prediction is checked by automated API tests, the Docker smoke test, and the independent clean-machine acceptance procedure.
 
 ### Response fields
 
@@ -682,6 +781,55 @@ Unexpected failure:
 
 The middleware does not log request payloads or production feature values.
 
+## Artifact integrity and startup contract
+
+The approved serving artifact is:
+
+```text
+models/ensemble_2_0_model.joblib
+```
+
+Approved SHA-256:
+
+```text
+A4A7945CA5E77387BAB3854597F380F8445B35849EF3B640B340507B26112282
+```
+
+Before Joblib deserialization, the loader verifies that the file hash matches the approved metadata.
+
+After loading, startup validation checks:
+
+```text
+modeling version
+target
+component estimator classes
+component weights
+feature names
+feature order
+weight sum
+```
+
+The service fails startup rather than entering a false-ready state when the artifact, metadata, or serving reference is inconsistent.
+
+## Implementation evidence
+
+The release candidate has been checked through:
+
+```text
+60 automated Python tests
+manual Swagger and endpoint acceptance
+no-cache Docker image build
+automated Docker smoke testing
+100-record synthetic batch integration
+independent clean-machine reconstruction and execution
+```
+
+The Docker acceptance script verifies health, readiness, model version, target, the approved reference prediction, ordered batch consistency, operational metrics, and cleanup.
+
+The 100-record synthetic exercise is integration and diagnostic evidence only. It is not forecast-accuracy evidence.
+
+The GitHub Actions workflow is committed and configured to run the Python test suite followed by the Docker acceptance test. External CI execution requires the repository to be pushed to GitHub.
+
 ## Operational guarantees
 
 The current implementation guarantees that:
@@ -699,7 +847,21 @@ The current implementation guarantees that:
 - every response includes `X-Request-ID`;
 - unexpected internal errors are hidden from callers;
 - prediction request payloads are not logged;
-- outside-range diagnostics do not silently block prediction.
+- outside-range diagnostics do not silently block prediction;
+- the model checksum is verified before deserialization;
+- readiness is reported only after model and serving-reference validation;
+- metric route labels are bounded;
+- operational metrics contain aggregate categories rather than raw prediction data.
+
+## Versioning and compatibility
+
+The `/v1` prefix defines the prediction-route compatibility boundary.
+
+Changes that remove or rename required request fields, alter response-field meaning, change batch ordering, or change warning-code semantics require a new API route version or an explicitly documented migration.
+
+Model-version changes do not automatically require a new API route version when the request and response contract remains compatible. The active model version is always returned in prediction responses and readiness metadata.
+
+Prometheus metric names and label values are treated as an operational interface. Renaming or removing them should be handled as an observability-contract change.
 
 ## Interpretation and limitations
 
@@ -719,17 +881,25 @@ The current application does not define authentication or authorization. Those c
 
 ## Contract acceptance criteria
 
-The contract is accepted when:
+The release-candidate contract is accepted when:
 
 1. `/health` returns `200` and `{"status": "ok"}`.
-2. `/ready` confirms model version `2.0`.
-3. `/v1/model` reports the two components and correct weights.
-4. `/v1/predict` returns the weighted ensemble result.
-5. `/v1/predict` returns support and disagreement diagnostics.
-6. `/v1/predict/batch` accepts 1–500 records.
-7. Batch output preserves input order.
-8. Invalid input returns `422`.
-9. Every response includes `X-Request-ID`.
-10. Unexpected internal errors return a safe `500`.
-11. The automated test suite passes.
-12. Representative requests work through Swagger UI.
+2. `/ready` confirms model version `2.0` and target `active_energy_kWh`.
+3. startup rejects a model artifact whose SHA-256 does not match the approved metadata.
+4. `/v1/model` reports the two component estimators, feature lists, and 70/30 weights.
+5. `/v1/predict` reproduces the approved deterministic reference prediction.
+6. `/v1/predict` returns both component predictions.
+7. `/v1/predict` returns operational-support, calendar-coverage, disagreement, and warning diagnostics.
+8. `/v1/predict/batch` accepts 1–500 records.
+9. batch output preserves input order.
+10. single and batch inference produce identical results for the same record.
+11. invalid input returns `422` without partial prediction output.
+12. every response includes `X-Request-ID`.
+13. unexpected internal errors return a safe `500` without exposing exception details.
+14. `/metrics` returns Prometheus-compatible text.
+15. HTTP, prediction-record, support, disagreement, and warning counters update correctly.
+16. the complete automated Python test suite passes.
+17. the no-cache Docker smoke test passes and removes its temporary container.
+18. the independent clean-machine procedure reproduces the approved model hash and reference prediction.
+19. representative prediction operations work through Swagger UI.
+20. raw request payloads and production feature values are absent from structured request logs and operational metrics.
