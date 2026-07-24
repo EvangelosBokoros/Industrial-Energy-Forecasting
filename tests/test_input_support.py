@@ -319,6 +319,28 @@ def test_project_reference_file_loads_successfully() -> None:
     assert result.calendar_coverage_status == "represented"
     assert result.outside_range_features == ()
     assert result.unseen_calendar_features == ()
+
+
+def test_project_reference_path_is_independent_of_working_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Verify that the default project reference can be located even
+    when the process starts outside the repository root.
+    """
+
+    monkeypatch.chdir(tmp_path)
+
+    checker = InputSupportChecker()
+
+    assert checker.reference_path.is_absolute()
+    assert checker.reference_path.exists()
+    assert checker.numeric_reference
+    assert checker.calendar_reference
+
+
+
 def test_upper_distribution_tail_is_identified(
     tmp_path: Path,
 ) -> None:

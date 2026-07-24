@@ -8,8 +8,13 @@ from pathlib import Path
 from typing import Any, Literal
 
 
-DEFAULT_INPUT_REFERENCE_PATH = Path(
-    "config/serving/input_reference.json"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+DEFAULT_INPUT_REFERENCE_PATH = (
+    PROJECT_ROOT
+    / "config"
+    / "serving"
+    / "input_reference.json"
 )
 
 OPERATIONAL_FEATURES = (
