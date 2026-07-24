@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from sklearn.dummy import DummyRegressor
-from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+from sklearn.ensemble import (
+    ExtraTreesRegressor,
+    GradientBoostingRegressor,
+    RandomForestRegressor,
+)
 from sklearn.linear_model import LinearRegression, Ridge
 
 
@@ -19,9 +23,21 @@ def build_ridge_regression_model(alpha: float = 1.0) -> Ridge:
 
 def build_random_forest_model() -> RandomForestRegressor:
     return RandomForestRegressor(
-        n_estimators=300,
-        max_depth=4,
+        n_estimators=700,
+        max_depth=5,
         min_samples_leaf=2,
+        max_features=0.8,
+        random_state=33,
+        n_jobs=-1,
+    )
+
+
+def build_extra_trees_model() -> ExtraTreesRegressor:
+    return ExtraTreesRegressor(
+        n_estimators=500,
+        max_depth=6,
+        min_samples_leaf=2,
+        max_features=0.7,
         random_state=33,
         n_jobs=-1,
     )
@@ -29,10 +45,11 @@ def build_random_forest_model() -> RandomForestRegressor:
 
 def build_gradient_boosting_model() -> GradientBoostingRegressor:
     return GradientBoostingRegressor(
-        n_estimators=100,
-        learning_rate=0.05,
-        max_depth=2,
-        min_samples_leaf=3,
+        n_estimators=250,
+        learning_rate=0.1,
+        max_depth=4,
+        min_samples_leaf=4,
+        subsample=0.9,
         random_state=33,
     )
 
@@ -43,5 +60,6 @@ def get_full_history_model_builders() -> dict:
         "linear_regression": build_linear_regression_model,
         "ridge_regression": build_ridge_regression_model,
         "random_forest": build_random_forest_model,
+        "extra_trees": build_extra_trees_model,
         "gradient_boosting": build_gradient_boosting_model,
     }
