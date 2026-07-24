@@ -11,7 +11,7 @@ from src.evaluate import (
     calculate_bootstrap_metric_intervals,
     calculate_regression_metrics,
 )
-from src.features import build_model_inputs
+from src.feature_sets import get_available_feature_sets, get_feature_columns
 from src.model import get_model_builders
 from src.plots import (
     calculate_residuals,
@@ -24,7 +24,6 @@ from src.plots import (
 from src.preprocessing import clean_energy_dataset, validate_required_columns
 from src.settings import (
     DATE_COL,
-    FEATURE_COLUMNS,
     INTERVENTION_DATE,
     POST_TEST_START,
     POST_TRAIN_END,
@@ -51,9 +50,16 @@ POST_ONLY_REPORT_PATH = REPORTS_DIR / "post_only_training_report.xlsx"
 FEATURE_LIST_PATH = METADATA_DIR / "post_only_features.txt"
 SELECTED_MODEL_PATH = MODELS_DIR / "post_only_model.joblib"
 
+MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
 MLFLOW_EXPERIMENT_NAME = "Damavand Energy Forecasting"
 MODELING_VERSION = "0.1"
-RUN_NAME = "0.1 Post-Only Gradient Boosting Revised Split"
+
+RUN_NAMES = {
+    "full": "0.1 Full Feature Baseline",
+    "vif_auto_post_only": "0.1.1 VIF Auto Feature Set Diagnostic",
+    "reduced_without_total_kg": "0.1.2 Reduced Feature Challenger Without Total KG",
+    "domain_reduced_with_total_kg": "0.1.3 Domain Reduced Feature Set With Total KG",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -65,12 +71,58 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--feature-set",
+        default="full",
+        choices=get_available_feature_sets(),
+        help=(
+            "Named feature set to use for training. "
+            "Defaults to 'full', which uses the original project feature list."
+        ),
+    )
+
+    parser.add_argument(
         "--log-mlflow",
         action="store_true",
         help="Log this run to MLflow.",
     )
 
     return parser.parse_args()
+
+
+def build_run_name(feature_set_name: str) -> str:
+    """
+    Build a clear MLflow run name for the selected feature set.
+    """
+    return RUN_NAMES.get(
+        feature_set_name,
+        f"{MODELING_VERSION} Feature Set {feature_set_name}",
+    )
+
+
+def build_output_paths(
+    feature_set_name: str,
+) -> tuple[Path, Path, Path, Path]:
+    """
+    Build output paths for reports, feature metadata, model artifact, and figures.
+
+    The default full-feature run keeps the original output paths. Diagnostic
+    feature-set runs receive feature-set-specific paths to avoid overwriting
+    the official baseline outputs.
+    """
+    if feature_set_name == "full":
+        return (
+            POST_ONLY_REPORT_PATH,
+            FEATURE_LIST_PATH,
+            SELECTED_MODEL_PATH,
+            FIGURES_DIR,
+        )
+
+    report_path = REPORTS_DIR / f"post_only_training_report_{feature_set_name}.xlsx"
+    feature_list_path = METADATA_DIR / f"post_only_features_{feature_set_name}.txt"
+    selected_model_path = MODELS_DIR / f"post_only_model_{feature_set_name}.joblib"
+    figures_dir = FIGURES_DIR / feature_set_name
+
+    return report_path, feature_list_path, selected_model_path, figures_dir
 
 
 def build_prediction_table(
@@ -131,6 +183,32 @@ def build_bootstrap_intervals_table(
         )
 
     return pd.DataFrame(records)
+
+
+def build_run_summary_table(
+    feature_set_name: str,
+    selected_feature_columns: list[str],
+    split_sizes: dict[str, int],
+) -> pd.DataFrame:
+    """
+    Build a compact run summary table for the Excel report.
+    """
+    summary = {
+        "modeling_version": MODELING_VERSION,
+        "feature_set_name": feature_set_name,
+        "feature_count": len(selected_feature_columns),
+        "selected_features": ", ".join(selected_feature_columns),
+        "intervention_date": INTERVENTION_DATE,
+        "post_train_end": POST_TRAIN_END,
+        "post_validation_start": POST_VALIDATION_START,
+        "post_validation_end": POST_VALIDATION_END,
+        "post_test_start": POST_TEST_START,
+    }
+
+    for split_name, row_count in split_sizes.items():
+        summary[f"{split_name}_rows"] = row_count
+
+    return pd.DataFrame([summary])
 
 
 def save_feature_list(
@@ -211,6 +289,12 @@ def log_run_to_mlflow(
     validation_metrics_df: pd.DataFrame,
     test_metrics_record: dict[str, float],
     split_sizes: dict[str, int],
+    feature_set_name: str,
+    selected_feature_columns: list[str],
+    report_path: Path,
+    feature_list_path: Path,
+    selected_model_path: Path,
+    figures_dir: Path,
 ) -> None:
     """
     Log selected run information to MLflow.
@@ -223,17 +307,22 @@ def log_run_to_mlflow(
         validation_metrics_df["model_name"] == selected_model_name
     ].iloc[0]
 
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+
     print(f"\nMLflow tracking URI: {mlflow.get_tracking_uri()}")
 
     mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
 
-    with mlflow.start_run(run_name=RUN_NAME) as run:
+    run_name = build_run_name(feature_set_name)
+
+    with mlflow.start_run(run_name=run_name) as run:
         mlflow.log_param("modeling_version", MODELING_VERSION)
+        mlflow.log_param("feature_set_name", feature_set_name)
         mlflow.log_param("model_type", type(model).__name__)
         mlflow.log_param("selected_model_name", selected_model_name)
         mlflow.log_param("date_column", DATE_COL)
         mlflow.log_param("target_column", TARGET_COL)
-        mlflow.log_param("feature_count", len(FEATURE_COLUMNS))
+        mlflow.log_param("feature_count", len(selected_feature_columns))
         mlflow.log_param("candidate_models", ",".join(model_builders.keys()))
 
         mlflow.log_param("intervention_date", INTERVENTION_DATE)
@@ -248,13 +337,21 @@ def log_run_to_mlflow(
         for parameter_name, parameter_value in model.get_params().items():
             mlflow.log_param(f"model__{parameter_name}", parameter_value)
 
+        run_type = (
+            "official_baseline"
+            if feature_set_name == "full"
+            else "feature_set_diagnostic"
+        )
+
         mlflow.set_tag("project", "damavand_energy_forecasting")
         mlflow.set_tag("objective", "post_installation_forecasting")
-        mlflow.set_tag("features", ", ".join(FEATURE_COLUMNS))
+        mlflow.set_tag("run_type", run_type)
+        mlflow.set_tag("selection_stage", "validation")
+        mlflow.set_tag("features", ", ".join(selected_feature_columns))
         mlflow.set_tag("raw_data_logged", "False")
         mlflow.set_tag(
             "training_info",
-            "Version 0.1 post-only forecasting baseline with revised validation split.",
+            "Version 0.1 post-only forecasting experiment with named feature sets.",
         )
 
         metric_names = [
@@ -284,22 +381,22 @@ def log_run_to_mlflow(
                 )
 
         log_artifact_if_exists(
-            POST_ONLY_REPORT_PATH,
+            report_path,
             mlflow_artifact_path="reports",
         )
 
         log_artifact_if_exists(
-            SELECTED_MODEL_PATH,
+            selected_model_path,
             mlflow_artifact_path="models",
         )
 
         log_artifact_if_exists(
-            FEATURE_LIST_PATH,
+            feature_list_path,
             mlflow_artifact_path="metadata",
         )
 
-        if FIGURES_DIR.exists():
-            for figure_path in sorted(FIGURES_DIR.glob("*.png")):
+        if figures_dir.exists():
+            for figure_path in sorted(figures_dir.glob("*.png")):
                 mlflow.log_artifact(
                     str(figure_path),
                     artifact_path="figures",
@@ -307,18 +404,33 @@ def log_run_to_mlflow(
 
         print("\nMLflow run logged.")
         print(f"Experiment: {MLFLOW_EXPERIMENT_NAME}")
-        print(f"Run name: {RUN_NAME}")
+        print(f"Run name: {run_name}")
         print(f"Run ID: {run.info.run_id}")
         print(f"Artifact URI: {mlflow.get_artifact_uri()}")
 
 
-def main(log_mlflow: bool = False) -> None:
+def main(
+    log_mlflow: bool = False,
+    feature_set_name: str = "full",
+) -> None:
     """
-    Run the first post-installation forecasting experiment.
+    Run a post-installation forecasting experiment.
     """
+    selected_feature_columns = get_feature_columns(feature_set_name)
+
+    (
+        report_path,
+        feature_list_path,
+        selected_model_path,
+        figures_dir,
+    ) = build_output_paths(feature_set_name)
+
+    print(f"\nFeature set: {feature_set_name}")
+    print(f"Feature count: {len(selected_feature_columns)}")
+
     raw_df = load_tabular_data(DATA_PATH)
 
-    required_columns = [DATE_COL, TARGET_COL] + FEATURE_COLUMNS
+    required_columns = [DATE_COL, TARGET_COL] + selected_feature_columns
     validate_required_columns(raw_df, required_columns)
 
     clean_df = clean_energy_dataset(
@@ -328,10 +440,11 @@ def main(log_mlflow: bool = False) -> None:
     )
 
     model_df = clean_df.dropna(
-        subset=FEATURE_COLUMNS + [TARGET_COL],
+        subset=selected_feature_columns + [TARGET_COL],
     ).reset_index(drop=True)
 
-    X, y = build_model_inputs(model_df)
+    X = model_df[selected_feature_columns].copy()
+    y = model_df[TARGET_COL].copy()
 
     post_train_mask, post_validation_mask, post_test_mask = create_post_split_masks(
         model_df,
@@ -421,6 +534,7 @@ def main(log_mlflow: bool = False) -> None:
     )
 
     test_metrics_record = {
+        "feature_set_name": feature_set_name,
         "selected_model": selected_model_name,
         **test_metrics,
         **flatten_bootstrap_intervals(bootstrap_intervals),
@@ -441,14 +555,26 @@ def main(log_mlflow: bool = False) -> None:
 
     bootstrap_intervals_df = build_bootstrap_intervals_table(bootstrap_intervals)
 
+    run_summary_df = build_run_summary_table(
+        feature_set_name=feature_set_name,
+        selected_feature_columns=selected_feature_columns,
+        split_sizes=split_sizes,
+    )
+
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    figures_dir.mkdir(parents=True, exist_ok=True)
     METADATA_DIR.mkdir(parents=True, exist_ok=True)
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
-    save_feature_list(FEATURE_COLUMNS, FEATURE_LIST_PATH)
+    save_feature_list(selected_feature_columns, feature_list_path)
 
-    with pd.ExcelWriter(POST_ONLY_REPORT_PATH, engine="openpyxl") as writer:
+    with pd.ExcelWriter(report_path, engine="openpyxl") as writer:
+        run_summary_df.to_excel(
+            writer,
+            sheet_name="Run Summary",
+            index=False,
+        )
+
         validation_metrics_df.to_excel(
             writer,
             sheet_name="Validation Metrics",
@@ -473,7 +599,7 @@ def main(log_mlflow: bool = False) -> None:
             index=False,
         )
 
-    joblib.dump(selected_model, SELECTED_MODEL_PATH)
+    joblib.dump(selected_model, selected_model_path)
 
     test_dates = model_df.loc[post_test_mask, DATE_COL]
 
@@ -481,7 +607,7 @@ def main(log_mlflow: bool = False) -> None:
         dates=test_dates,
         y_true=y_test,
         y_pred=test_predictions,
-        output_path=FIGURES_DIR / "post_only_actual_vs_predicted.png",
+        output_path=figures_dir / "post_only_actual_vs_predicted.png",
         title="Post-Installation Test: Actual vs Predicted",
     )
 
@@ -489,36 +615,36 @@ def main(log_mlflow: bool = False) -> None:
         dates=test_dates,
         y_true=y_test,
         y_pred=test_predictions,
-        output_path=FIGURES_DIR / "post_only_residuals_over_time.png",
+        output_path=figures_dir / "post_only_residuals_over_time.png",
         title="Post-Installation Test: Residuals Over Time",
     )
 
     plot_residuals_vs_predicted(
         y_true=y_test,
         y_pred=test_predictions,
-        output_path=FIGURES_DIR / "post_only_residuals_vs_predicted.png",
+        output_path=figures_dir / "post_only_residuals_vs_predicted.png",
         title="Post-Installation Test: Residuals vs Predicted",
     )
 
     plot_actual_vs_predicted_scatter(
         y_true=y_test,
         y_pred=test_predictions,
-        output_path=FIGURES_DIR / "post_only_actual_vs_predicted_scatter.png",
+        output_path=figures_dir / "post_only_actual_vs_predicted_scatter.png",
         title="Post-Installation Test: Actual vs Predicted Scatter",
     )
 
     plot_residual_distribution(
         y_true=y_test,
         y_pred=test_predictions,
-        output_path=FIGURES_DIR / "post_only_residual_distribution.png",
+        output_path=figures_dir / "post_only_residual_distribution.png",
         title="Post-Installation Test: Residual Distribution",
     )
 
     print("\nSaved outputs:")
-    print(f"- {POST_ONLY_REPORT_PATH}")
-    print(f"- {SELECTED_MODEL_PATH}")
-    print(f"- {FEATURE_LIST_PATH}")
-    print(f"- {FIGURES_DIR}")
+    print(f"- {report_path}")
+    print(f"- {selected_model_path}")
+    print(f"- {feature_list_path}")
+    print(f"- {figures_dir}")
 
     if log_mlflow:
         log_run_to_mlflow(
@@ -528,6 +654,12 @@ def main(log_mlflow: bool = False) -> None:
             validation_metrics_df=validation_metrics_df,
             test_metrics_record=test_metrics_record,
             split_sizes=split_sizes,
+            feature_set_name=feature_set_name,
+            selected_feature_columns=selected_feature_columns,
+            report_path=report_path,
+            feature_list_path=feature_list_path,
+            selected_model_path=selected_model_path,
+            figures_dir=figures_dir,
         )
     else:
         print("\nMLflow logging skipped.")
@@ -536,4 +668,7 @@ def main(log_mlflow: bool = False) -> None:
 
 if __name__ == "__main__":
     args = parse_args()
-    main(log_mlflow=args.log_mlflow)
+    main(
+        log_mlflow=args.log_mlflow,
+        feature_set_name=args.feature_set,
+    )
