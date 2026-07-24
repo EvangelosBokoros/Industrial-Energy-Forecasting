@@ -101,3 +101,90 @@ def test_prediction_rejects_negative_input(client):
     )
 
     assert response.status_code == 422
+
+
+def test_root_endpoint_returns_service_navigation(client):
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "service": "Damavand Energy Forecasting API",
+        "api_version": "1.0.0",
+        "documentation_url": "/docs",
+        "health_url": "/health",
+        "readiness_url": "/ready",
+        "model_url": "/v1/model",
+    }
+
+
+def test_readiness_endpoint_confirms_model_is_loaded(client):
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ready",
+        "modeling_version": "2.0",
+        "target": "active_energy_kWh",
+    }
+
+
+def test_model_information_endpoint_returns_active_ensemble(
+    client,
+):
+    response = client.get("/v1/model")
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["modeling_version"] == "2.0"
+    assert body["ensemble_type"] == (
+        "constrained_weighted_prediction_average"
+    )
+    assert body["target"] == "active_energy_kWh"
+
+    assert set(body["components"]) == {
+        "post_only",
+        "full_history",
+    }
+
+    post_only = body["components"]["post_only"]
+
+    assert post_only["estimator_class"] == (
+        "ExtraTreesRegressor"
+    )
+    assert post_only["weight"] == pytest.approx(0.7)
+    assert post_only["features"] == [
+        "total_kg",
+        "total_nominal_kg",
+        "total_brix_units",
+        "total_hours",
+        "total_pallets",
+        "orders",
+        "avg_brix",
+        "yield_ratio_actual_over_nominal",
+        "weekday",
+        "is_weekend",
+        "month",
+        "year",
+        "week_of_year",
+    ]
+
+    full_history = body["components"]["full_history"]
+
+    assert full_history["estimator_class"] == (
+        "AdaBoostRegressor"
+    )
+    assert full_history["weight"] == pytest.approx(0.3)
+    assert full_history["features"] == [
+        "total_kg",
+        "total_hours",
+        "total_pallets",
+        "orders",
+        "avg_brix",
+        "yield_ratio_actual_over_nominal",
+        "weekday",
+        "is_weekend",
+        "month",
+        "year",
+    ]

@@ -49,3 +49,47 @@ class PredictionResponse(BaseModel):
         "high",
         "undefined",
     ]
+
+
+class RootResponse(BaseModel):
+    """Basic information and navigation for the API."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    service: str
+    api_version: str
+    documentation_url: str
+    health_url: str
+    readiness_url: str
+    model_url: str
+
+
+class ReadinessResponse(BaseModel):
+    """Confirmation that the validated model is ready for predictions."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["ready"]
+    modeling_version: str
+    target: str
+
+
+class ModelComponentResponse(BaseModel):
+    """Public serving details for one ensemble component."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    estimator_class: str
+    weight: float
+    features: list[str]
+
+
+class ModelInfoResponse(BaseModel):
+    """Public metadata describing the active forecasting model."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    modeling_version: str
+    ensemble_type: str
+    target: str
+    components: dict[str, ModelComponentResponse]
