@@ -1,0 +1,15 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+norecursedirs = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "mlruns",
+    "models",
+    "reports",
+]
+addopts = [
+    "--strict-config",
+    "--strict-markers",
+]
