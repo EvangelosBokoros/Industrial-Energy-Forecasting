@@ -1,6 +1,9 @@
+import argparse
 from pathlib import Path
 
 import joblib
+import mlflow
+import numpy as np
 import pandas as pd
 
 from src.data import load_tabular_data
@@ -41,10 +44,33 @@ DATA_PATH = Path("data/processed/damavand.csv")
 
 REPORTS_DIR = Path("reports")
 FIGURES_DIR = REPORTS_DIR / "figures"
+METADATA_DIR = REPORTS_DIR / "metadata"
 MODELS_DIR = Path("models")
 
 POST_ONLY_REPORT_PATH = REPORTS_DIR / "post_only_training_report.xlsx"
+FEATURE_LIST_PATH = METADATA_DIR / "post_only_features.txt"
 SELECTED_MODEL_PATH = MODELS_DIR / "post_only_model.joblib"
+
+MLFLOW_EXPERIMENT_NAME = "Damavand Energy Forecasting"
+MODELING_VERSION = "0.1"
+RUN_NAME = "0.1 Post-Only Gradient Boosting Revised Split"
+
+
+def parse_args() -> argparse.Namespace:
+    """
+    Parse command-line arguments.
+    """
+    parser = argparse.ArgumentParser(
+        description="Train the Damavand post-installation forecasting model."
+    )
+
+    parser.add_argument(
+        "--log-mlflow",
+        action="store_true",
+        help="Log this run to MLflow.",
+    )
+
+    return parser.parse_args()
 
 
 def build_prediction_table(
@@ -107,6 +133,26 @@ def build_bootstrap_intervals_table(
     return pd.DataFrame(records)
 
 
+def save_feature_list(
+    feature_columns: list[str],
+    output_path: Path,
+) -> None:
+    """
+    Save the feature list used in the run.
+    """
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    lines = [
+        "Feature columns used by the model:",
+        "",
+    ]
+
+    for index, feature_name in enumerate(feature_columns, start=1):
+        lines.append(f"{index}. {feature_name}")
+
+    output_path.write_text("\n".join(lines), encoding="utf-8")
+
+
 def print_metrics(title: str, metrics: dict[str, float]) -> None:
     """
     Print metrics in a readable format.
@@ -136,7 +182,137 @@ def print_bootstrap_intervals(
         )
 
 
-def main() -> None:
+def log_metric_if_valid(metric_name: str, metric_value: float) -> None:
+    """
+    Log a metric to MLflow only if it is a valid finite number.
+    """
+    if np.isfinite(metric_value):
+        mlflow.log_metric(metric_name, float(metric_value))
+
+
+def log_artifact_if_exists(
+    artifact_path: Path,
+    mlflow_artifact_path: str,
+) -> None:
+    """
+    Log an artifact to MLflow only if the local path exists.
+    """
+    if artifact_path.exists():
+        mlflow.log_artifact(
+            str(artifact_path),
+            artifact_path=mlflow_artifact_path,
+        )
+
+
+def log_run_to_mlflow(
+    model,
+    selected_model_name: str,
+    model_builders: dict,
+    validation_metrics_df: pd.DataFrame,
+    test_metrics_record: dict[str, float],
+    split_sizes: dict[str, int],
+) -> None:
+    """
+    Log selected run information to MLflow.
+
+    This function is only called when running:
+
+        python -m src.train --log-mlflow
+    """
+    selected_validation_metrics = validation_metrics_df.loc[
+        validation_metrics_df["model_name"] == selected_model_name
+    ].iloc[0]
+
+    print(f"\nMLflow tracking URI: {mlflow.get_tracking_uri()}")
+
+    mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
+
+    with mlflow.start_run(run_name=RUN_NAME) as run:
+        mlflow.log_param("modeling_version", MODELING_VERSION)
+        mlflow.log_param("model_type", type(model).__name__)
+        mlflow.log_param("selected_model_name", selected_model_name)
+        mlflow.log_param("date_column", DATE_COL)
+        mlflow.log_param("target_column", TARGET_COL)
+        mlflow.log_param("feature_count", len(FEATURE_COLUMNS))
+        mlflow.log_param("candidate_models", ",".join(model_builders.keys()))
+
+        mlflow.log_param("intervention_date", INTERVENTION_DATE)
+        mlflow.log_param("post_train_end", POST_TRAIN_END)
+        mlflow.log_param("post_validation_start", POST_VALIDATION_START)
+        mlflow.log_param("post_validation_end", POST_VALIDATION_END)
+        mlflow.log_param("post_test_start", POST_TEST_START)
+
+        for split_name, row_count in split_sizes.items():
+            mlflow.log_param(f"{split_name}_rows", row_count)
+
+        for parameter_name, parameter_value in model.get_params().items():
+            mlflow.log_param(f"model__{parameter_name}", parameter_value)
+
+        mlflow.set_tag("project", "damavand_energy_forecasting")
+        mlflow.set_tag("objective", "post_installation_forecasting")
+        mlflow.set_tag("features", ", ".join(FEATURE_COLUMNS))
+        mlflow.set_tag("raw_data_logged", "False")
+        mlflow.set_tag(
+            "training_info",
+            "Version 0.1 post-only forecasting baseline with revised validation split.",
+        )
+
+        metric_names = [
+            "mae",
+            "rmse",
+            "r2",
+            "mape",
+            "total_deviation_pct",
+        ]
+
+        for metric_name in metric_names:
+            log_metric_if_valid(
+                f"validation_{metric_name}",
+                float(selected_validation_metrics[metric_name]),
+            )
+
+            log_metric_if_valid(
+                f"test_{metric_name}",
+                float(test_metrics_record[metric_name]),
+            )
+
+        for metric_name, metric_value in test_metrics_record.items():
+            if metric_name.endswith("_ci_lower") or metric_name.endswith("_ci_upper"):
+                log_metric_if_valid(
+                    f"test_{metric_name}",
+                    float(metric_value),
+                )
+
+        log_artifact_if_exists(
+            POST_ONLY_REPORT_PATH,
+            mlflow_artifact_path="reports",
+        )
+
+        log_artifact_if_exists(
+            SELECTED_MODEL_PATH,
+            mlflow_artifact_path="models",
+        )
+
+        log_artifact_if_exists(
+            FEATURE_LIST_PATH,
+            mlflow_artifact_path="metadata",
+        )
+
+        if FIGURES_DIR.exists():
+            for figure_path in sorted(FIGURES_DIR.glob("*.png")):
+                mlflow.log_artifact(
+                    str(figure_path),
+                    artifact_path="figures",
+                )
+
+        print("\nMLflow run logged.")
+        print(f"Experiment: {MLFLOW_EXPERIMENT_NAME}")
+        print(f"Run name: {RUN_NAME}")
+        print(f"Run ID: {run.info.run_id}")
+        print(f"Artifact URI: {mlflow.get_artifact_uri()}")
+
+
+def main(log_mlflow: bool = False) -> None:
     """
     Run the first post-installation forecasting experiment.
     """
@@ -224,7 +400,6 @@ def main() -> None:
 
     print(f"\nSelected model by validation MAE: {selected_model_name}")
 
-    # Refit selected model on post-train + post-validation before final test.
     final_train_mask = post_train_mask | post_validation_mask
 
     X_final_train = X.loc[final_train_mask]
@@ -268,7 +443,10 @@ def main() -> None:
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    METADATA_DIR.mkdir(parents=True, exist_ok=True)
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
+
+    save_feature_list(FEATURE_COLUMNS, FEATURE_LIST_PATH)
 
     with pd.ExcelWriter(POST_ONLY_REPORT_PATH, engine="openpyxl") as writer:
         validation_metrics_df.to_excel(
@@ -339,8 +517,23 @@ def main() -> None:
     print("\nSaved outputs:")
     print(f"- {POST_ONLY_REPORT_PATH}")
     print(f"- {SELECTED_MODEL_PATH}")
+    print(f"- {FEATURE_LIST_PATH}")
     print(f"- {FIGURES_DIR}")
+
+    if log_mlflow:
+        log_run_to_mlflow(
+            model=selected_model,
+            selected_model_name=selected_model_name,
+            model_builders=model_builders,
+            validation_metrics_df=validation_metrics_df,
+            test_metrics_record=test_metrics_record,
+            split_sizes=split_sizes,
+        )
+    else:
+        print("\nMLflow logging skipped.")
+        print("Run with --log-mlflow to log this experiment.")
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(log_mlflow=args.log_mlflow)
