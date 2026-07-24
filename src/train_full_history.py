@@ -44,10 +44,16 @@ FULL_HISTORY_FEATURE_LIST_PATH = METADATA_DIR / "full_history_features.txt"
 FULL_HISTORY_SELECTED_MODEL_PATH = MODELS_DIR / "full_history_model.joblib"
 FULL_HISTORY_FIGURES_DIR = FIGURES_BASE_DIR / "full_history"
 
-FULL_HISTORY_VIF_REPORT_PATH = REPORTS_DIR / "full_history_vif_training_report.xlsx"
-FULL_HISTORY_VIF_FEATURE_LIST_PATH = METADATA_DIR / "full_history_vif_features.txt"
-FULL_HISTORY_VIF_SELECTED_MODEL_PATH = MODELS_DIR / "full_history_vif_model.joblib"
-FULL_HISTORY_VIF_FIGURES_DIR = FIGURES_BASE_DIR / "full_history_vif"
+FULL_HISTORY_VIF_REPORT_PATH = (
+    REPORTS_DIR / "full_history_vif_advanced_boosting_training_report.xlsx"
+)
+FULL_HISTORY_VIF_FEATURE_LIST_PATH = (
+    METADATA_DIR / "full_history_vif_advanced_boosting_features.txt"
+)
+FULL_HISTORY_VIF_SELECTED_MODEL_PATH = (
+    MODELS_DIR / "full_history_vif_advanced_boosting_model.joblib"
+)
+FULL_HISTORY_VIF_FIGURES_DIR = FIGURES_BASE_DIR / "full_history_vif_advanced_boosting"
 
 MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
 MLFLOW_EXPERIMENT_NAME = "Damavand Energy Forecasting"
@@ -63,13 +69,16 @@ RUN_CONFIGS = {
         ),
     },
     "vif_auto_full_history": {
-        "modeling_version": "1.2",
-        "run_name": "1.2 Full-History VIF-Reduced Feature Diagnostic",
-        "run_type": "full_history_vif_feature_diagnostic",
+        "modeling_version": "1.3",
+        "run_name": "1.3 Full-History VIF-Reduced Advanced Boosting Candidate Comparison",
+        "run_type": "full_history_vif_advanced_boosting_candidate_comparison",
         "training_info": (
-            "1.2 Full-History VIF-Reduced Feature Diagnostic. "
-            "Uses the Optuna-tuned full-history model candidates with the "
-            "VIF-reduced full-history feature set."
+            "1.3 Full-History VIF-Reduced Advanced Boosting Candidate Comparison. "
+            "Compares the best known VIF-reduced full-history candidates, including "
+            "Random Forest, Extra Trees, Gradient Boosting, XGBoost, CatBoost, and "
+            "AdaBoost. AdaBoost hyperparameters were selected from the 2000-trial "
+            "Optuna run. The 10000-trial run was treated as a sensitivity diagnostic "
+            "because the validation window contains only 7 days."
         ),
     },
 }
@@ -123,8 +132,8 @@ def build_output_paths(
     Build output paths for reports, feature metadata, model artifact, and figures.
 
     The default full-feature run keeps the original full-history output paths.
-    The VIF-reduced run gets separate paths to avoid overwriting the official
-    full-feature tuned run.
+    The VIF-reduced 1.3 run gets separate advanced-boosting paths to avoid
+    overwriting earlier VIF diagnostic artifacts.
     """
     if feature_set_name == "full":
         return (
@@ -368,6 +377,7 @@ def log_run_to_mlflow(
     model,
     selected_model_name: str,
     model_builders: dict,
+    training_metrics_df: pd.DataFrame,
     validation_metrics_df: pd.DataFrame,
     test_metrics_record: dict[str, float],
     split_sizes: dict[str, int],
@@ -386,6 +396,10 @@ def log_run_to_mlflow(
 
         python -m src.train_full_history --log-mlflow
     """
+    selected_training_metrics = training_metrics_df.loc[
+        training_metrics_df["model_name"] == selected_model_name
+    ].iloc[0]
+
     selected_validation_metrics = validation_metrics_df.loc[
         validation_metrics_df["model_name"] == selected_model_name
     ].iloc[0]
@@ -444,6 +458,11 @@ def log_run_to_mlflow(
         ]
 
         for metric_name in metric_names:
+            log_metric_if_valid(
+                f"training_{metric_name}",
+                float(selected_training_metrics[metric_name]),
+            )
+
             log_metric_if_valid(
                 f"validation_{metric_name}",
                 float(selected_validation_metrics[metric_name]),
@@ -557,16 +576,30 @@ def main(
 
     model_builders = get_full_history_model_builders()
 
+    training_records = []
     validation_records = []
 
     for model_name, model_builder in model_builders.items():
         model = model_builder()
         model.fit(X_train, y_train)
 
+        training_predictions = model.predict(X_train)
+        training_metrics = calculate_regression_metrics(
+            y_train,
+            training_predictions,
+        )
+
         validation_predictions = model.predict(X_validation)
         validation_metrics = calculate_regression_metrics(
             y_validation,
             validation_predictions,
+        )
+
+        training_records.append(
+            {
+                "model_name": model_name,
+                **training_metrics,
+            }
         )
 
         validation_records.append(
@@ -576,15 +609,37 @@ def main(
             }
         )
 
+    training_metrics_df = pd.DataFrame(training_records)
     validation_metrics_df = pd.DataFrame(validation_records)
+
     validation_metrics_df = validation_metrics_df.sort_values("mae").reset_index(
         drop=True
+    )
+
+    model_order = validation_metrics_df["model_name"].tolist()
+
+    training_metrics_df = (
+        training_metrics_df.set_index("model_name")
+        .loc[model_order]
+        .reset_index()
     )
 
     selected_model_name = validation_metrics_df.loc[0, "model_name"]
 
     print("\nValidation model comparison:")
     print(validation_metrics_df.to_string(index=False))
+
+    print("\nTraining diagnostics, not used for selection:")
+    print(
+        training_metrics_df[
+            [
+                "model_name",
+                "mae",
+                "r2",
+                "total_deviation_pct",
+            ]
+        ].to_string(index=False)
+    )
 
     print(f"\nSelected model by validation MAE: {selected_model_name}")
 
@@ -650,6 +705,12 @@ def main(
         run_summary_df.to_excel(
             writer,
             sheet_name="Run Summary",
+            index=False,
+        )
+
+        training_metrics_df.to_excel(
+            writer,
+            sheet_name="Training Metrics",
             index=False,
         )
 
@@ -729,6 +790,7 @@ def main(
             model=selected_model,
             selected_model_name=selected_model_name,
             model_builders=model_builders,
+            training_metrics_df=training_metrics_df,
             validation_metrics_df=validation_metrics_df,
             test_metrics_record=test_metrics_record,
             split_sizes=split_sizes,
