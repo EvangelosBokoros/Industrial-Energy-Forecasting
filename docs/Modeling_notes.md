@@ -115,6 +115,7 @@ ridge_regression
 random_forest
 gradient_boosting
 catboost_regularized
+xgboost_regularized
 ```
 
 Candidate model selection is based on validation MAE.
@@ -176,7 +177,7 @@ test total deviation CI: [-3.1223, 14.9665]
 
 The full-feature Gradient Boosting model is retained as the initial production-safe baseline.
 
-It is not treated as the final model for all future work, but it is the current best real-data baseline before synthetic simulation and XGBoost extension work.
+It is not treated as the final model for all future work, but it is the current best real-data baseline before additional small-data candidates, synthetic simulation, and full-history forecasting extensions.
 
 ## Multicollinearity diagnostic
 
@@ -799,18 +800,176 @@ Reason:
 CatBoost was tested, tuned, and checked across feature sets, but validation evidence did not support selecting it.
 ```
 
+## Modeling Version 0.4 — XGBoost Objective Comparison
+
+Version 0.4 added XGBoost as another advanced boosting candidate.
+
+The purpose was to test whether XGBoost could improve over the selected full-feature Gradient Boosting baseline.
+
+XGBoost was added as a candidate model only. It did not replace the existing models.
+
+### Run 0.4 — XGBoost Squared-Error Candidate Comparison
+
+Run name:
+
+```text
+0.4 Full Feature Baseline With XGBoost Candidate
+```
+
+Objective:
+
+```text
+reg:squarederror
+```
+
+Selected model:
+
+```text
+gradient_boosting
+```
+
+Validation comparison:
+
+```text
+gradient_boosting validation MAE: 1693.194496
+xgboost_regularized validation MAE: 7831.997238
+```
+
+XGBoost validation results:
+
+```text
+xgboost_regularized validation MAE: 7831.997238
+xgboost_regularized validation RMSE: 8906.100415
+xgboost_regularized validation R²: -13.092522
+xgboost_regularized validation MAPE: 41.938217%
+xgboost_regularized validation total deviation: 43.641772%
+```
+
+Decision:
+
+```text
+XGBoost squared-error candidate rejected
+```
+
+Reason:
+
+The standard squared-error XGBoost configuration substantially underperformed the selected Gradient Boosting baseline.
+
+### Run 0.4.1 — XGBoost Tweedie Objective Candidate Comparison
+
+Run name:
+
+```text
+0.4.1 XGBoost Tweedie Objective Candidate Comparison
+```
+
+Objective:
+
+```text
+reg:tweedie
+```
+
+Selected model:
+
+```text
+gradient_boosting
+```
+
+Validation comparison:
+
+```text
+gradient_boosting validation MAE: 1693.194496
+xgboost_regularized validation MAE: 2344.517857
+```
+
+XGBoost validation results:
+
+```text
+xgboost_regularized validation MAE: 2344.517857
+xgboost_regularized validation RMSE: 2651.772284
+xgboost_regularized validation R²: -0.249355
+xgboost_regularized validation MAPE: 13.915890%
+xgboost_regularized validation total deviation: -11.836346%
+```
+
+Decision:
+
+```text
+XGBoost Tweedie candidate rejected
+```
+
+Reason:
+
+The Tweedie objective substantially improved XGBoost compared with the squared-error objective, reducing validation MAE from `7831.997238` to `2344.517857`.
+
+However, XGBoost still did not outperform the selected full-feature Gradient Boosting model.
+
+### XGBoost VIF-auto instability diagnostic
+
+A reduced VIF-auto feature set with XGBoost Tweedie produced an excellent validation result:
+
+```text
+vif_auto_post_only + XGBoost Tweedie validation MAE: 1065.291881
+validation R²: 0.695945
+validation total deviation: -2.053847%
+```
+
+However, it failed badly on the final holdout test period:
+
+```text
+test MAE: 4631.6858
+test RMSE: 5475.4191
+test R²: -3.4703
+test MAPE: 23.7644%
+test total deviation: -25.5581%
+```
+
+This run is not selected.
+
+It is documented as an instability diagnostic because it shows that the 7-day validation window can be misleading when the feature set is too reduced or the model objective is too specialized.
+
+This result supports the decision to retain the full-feature Gradient Boosting model as the production-safe baseline.
+
+## XGBoost decision summary
+
+XGBoost was evaluated in two meaningful stages:
+
+```text
+0.4 XGBoost squared-error objective
+0.4.1 XGBoost Tweedie objective
+```
+
+XGBoost improved substantially after objective tuning:
+
+```text
+squared-error validation MAE: 7831.997238
+Tweedie validation MAE:       2344.517857
+```
+
+However, it still did not beat Gradient Boosting:
+
+```text
+full-feature Gradient Boosting validation MAE: 1693.194496
+```
+
+The XGBoost decision is:
+
+```text
+Reject XGBoost for the current real-data post-installation forecasting task.
+```
+
+Reason:
+
+```text
+XGBoost was tested with a standard squared-error objective and with a Tweedie objective better suited to positive continuous targets. The Tweedie objective improved XGBoost substantially, but validation evidence still favored Gradient Boosting.
+```
+
 ## Final current model decision
 
 The selected production-safe model remains:
 
 ```text
 Full feature set + Gradient Boosting
-```
-
-The selected run family is:
-
-```text
-0.3 Full Feature Baseline With Tuned CatBoost Candidate
 ```
 
 The selected model is:
@@ -866,6 +1025,9 @@ The logged run families are:
 0.3.1 VIF Auto Feature Set With Tuned CatBoost Candidate
 0.3.2 Reduced Feature Set Without Total KG With Tuned CatBoost Candidate
 0.3.3 Domain Reduced Feature Set With Total KG With Tuned CatBoost Candidate
+
+0.4   Full Feature Baseline With XGBoost Candidate
+0.4.1 XGBoost Tweedie Objective Candidate Comparison
 ```
 
 The training script logs:
@@ -903,6 +1065,25 @@ Feature-set runs use:
 python -m src.train --feature-set <feature_set_name> --log-mlflow
 ```
 
+## Why Optuna is not used yet
+
+Automated hyperparameter optimization is intentionally not used in the current real post-installation benchmark.
+
+The current real post-installation validation window is only 7 days.
+
+Using Optuna or another automated hyperparameter optimizer at this stage would likely over-optimize the small validation window and produce misleading results.
+
+The current project uses controlled, documented candidate comparisons instead.
+
+Optuna may be appropriate later when the project has:
+
+* more real post-installation data
+* rolling validation folds
+* a synthetic simulation branch
+* larger train/validation windows
+
+For the current real benchmark, avoiding automated hyperparameter search is a deliberate modeling decision.
+
 ## Synthetic future-data extension
 
 A synthetic 100-day future-data extension may be added later for portfolio demonstration.
@@ -927,30 +1108,120 @@ Synthetic data should not be used to claim improved real-world model accuracy.
 
 The real model-selection benchmark remains based on the real post-installation train, validation, and test periods.
 
+## Full-history forecasting extension
+
+The current benchmark is a post-installation-only model.
+
+A later extension should use the full real historical dataset to build a more complete forecasting system.
+
+The full-history model should not erase the distinction between pre-installation and post-installation regimes.
+
+Recommended future versions:
+
+```text
+1.0 Full-History Forecasting Model With Intervention Features
+1.1 Baseline-as-Feature Forecasting Model
+1.2 Residual Correction Forecasting Model
+```
+
+### Intervention-aware full-history model
+
+The full-history model should add regime features such as:
+
+```text
+post_installation_flag
+days_since_intervention
+```
+
+These features allow the model to learn that the operating regime may have changed after the intervention.
+
+### Baseline-as-feature model
+
+A stronger future model can use a two-stage design.
+
+Stage 1:
+
+```text
+Train a baseline energy model only on pre-installation data.
+```
+
+Stage 2:
+
+```text
+Use the baseline model to generate baseline_predicted_kWh for post-installation rows.
+Train a post-installation forecasting model using baseline_predicted_kWh as an input feature.
+```
+
+This is not leakage if the baseline model is trained only on pre-installation data and if the second-stage model is trained only on post_train rows.
+
+The forecasting model then learns the relationship between:
+
+```text
+actual post-installation energy
+production conditions
+calendar conditions
+baseline expected energy
+post-installation adjustment
+```
+
+### Residual correction model
+
+An even cleaner version is residual correction.
+
+Compute:
+
+```text
+residual_kWh = actual_energy_kWh - baseline_predicted_kWh
+```
+
+Train a post-installation model to predict the residual.
+
+Final prediction:
+
+```text
+final_prediction = baseline_predicted_kWh + predicted_residual_kWh
+```
+
+This approach bridges the M&V baseline objective and the operational forecasting objective.
+
 ## Next modeling step
 
-The next real model-family candidate is XGBoost.
+Before tuning Gradient Boosting, the next recommended step is to test small-data alternative model families.
 
-The next model version should be:
-
-```text
-0.4 XGBoost Candidate Comparison
-```
-
-The XGBoost run should be compared against the current selected production-safe baseline:
+The next version should be:
 
 ```text
-Full feature set + Gradient Boosting
+0.5 Small-Data Candidate Comparison
 ```
 
-The same validation-first discipline should be maintained:
+Candidate models should include:
 
 ```text
-Use validation metrics for model selection.
-Use test metrics only as final holdout diagnostics.
+huber_regression
+bayesian_ridge
+elastic_net
+svr_rbf_scaled
+extra_trees
 ```
 
-If XGBoost does not improve validation performance in a domain-credible way, the project should retain the current full-feature Gradient Boosting model.
+Reason:
+
+Linear Regression is already close to Gradient Boosting on validation MAE:
+
+```text
+gradient_boosting validation MAE: 1693.194496
+linear_regression validation MAE: 1736.242085
+```
+
+This suggests that robust linear models and scaled kernel methods may be competitive on the small post-installation dataset.
+
+After this small-data model-family comparison, the project should move to:
+
+```text
+0.6 Tuned Gradient Boosting Final Candidate
+```
+
+The goal is to strengthen the final production-safe model decision before moving into the full-history forecasting extension.
 
 ## Current final conclusion
 
@@ -966,20 +1237,33 @@ CatBoost conclusion:
 CatBoost was evaluated and tuned but rejected because validation performance was consistently weaker than Gradient Boosting across all tested feature sets.
 ```
 
+XGBoost conclusion:
+
+```text
+XGBoost improved substantially after switching from squared-error to Tweedie objective, but it still underperformed the selected full-feature Gradient Boosting baseline.
+```
+
 Feature-set conclusion:
 
 ```text
 The full feature set is retained for production-safe modeling because it preserves key production-volume information and provides the strongest domain-credible balance.
 ```
 
-The next experimental extension is:
+The next experimental step is:
 
 ```text
-XGBoost candidate comparison
+0.5 Small-Data Candidate Comparison
 ```
 
-A separate later portfolio extension may include:
+A later portfolio extension may include:
 
 ```text
 Synthetic future-data simulation
+```
+
+A later full-history model extension may include:
+
+```text
+Baseline-as-feature forecasting
+Residual correction forecasting
 ```
