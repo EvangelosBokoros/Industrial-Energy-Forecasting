@@ -1,0 +1,90 @@
+{
+  "reference_version": "1.0",
+  "reference_scope": "post_only_development_train_plus_validation",
+  "development_start": "2025-09-12",
+  "development_end": "2025-10-24",
+  "development_rows": 37,
+  "typical_lower_quantile": 0.1,
+  "typical_upper_quantile": 0.9,
+  "numeric_features": {
+    "total_kg": {
+      "minimum": 14544.0,
+      "p10": 48140.4,
+      "p90": 684386.9999999999,
+      "maximum": 1038382.0
+    },
+    "total_nominal_kg": {
+      "minimum": 14302.4,
+      "p10": 47765.6,
+      "p90": 684182.8719999999,
+      "maximum": 1038031.55
+    },
+    "total_brix_units": {
+      "minimum": 402899.0,
+      "p10": 1250247.8,
+      "p90": 10249377.6,
+      "maximum": 12849863.0
+    },
+    "total_hours": {
+      "minimum": 11.82,
+      "p10": 24.0,
+      "p90": 143.4,
+      "maximum": 205.25
+    },
+    "total_pallets": {
+      "minimum": 0.0,
+      "p10": 0.0,
+      "p90": 0.0,
+      "maximum": 0.0
+    },
+    "orders": {
+      "minimum": 1.0,
+      "p10": 1.0,
+      "p90": 9.0,
+      "maximum": 11.0
+    },
+    "avg_brix": {
+      "minimum": 7.235466716,
+      "p10": 7.6320182786,
+      "p90": 28.144,
+      "maximum": 28.2
+    },
+    "yield_ratio_actual_over_nominal": {
+      "minimum": 0.9988601736336944,
+      "p10": 0.9997957168544094,
+      "p90": 1.009678414960182,
+      "maximum": 1.530186095374073
+    }
+  },
+  "calendar_features": {
+    "weekday": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "is_weekend": [
+      0,
+      1
+    ],
+    "month": [
+      9,
+      10
+    ],
+    "year": [
+      2025
+    ],
+    "week_of_year": [
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43
+    ]
+  }
+}
