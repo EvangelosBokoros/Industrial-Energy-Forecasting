@@ -2387,28 +2387,665 @@ It is not selected because it wins every metric. It is selected because it follo
 
 The 60/40 result remains important because it suggests that a larger full-history contribution may improve final-week behavior. As more post-installation data becomes available, ensemble weights should be revalidated and may shift toward a larger full-history contribution.
 
-## Next planned experiments
+# Version 2.1 — Behavioral Scenario Evaluation and Synthetic Stress Testing
 
-The next modeling and engineering steps are:
+## Purpose
 
-1. Synthetic scenario stress testing
+After selecting the official Version 2.0 ensemble, the project added a post-selection behavioral evaluation to examine the forecasting system across representative real historical profiles, controlled local synthetic perturbations around those real historical profiles, deliberately adversarial operating combinations, and out-of-distribution conditions.
 
-   Use plausible synthetic production days to inspect whether the selected ensemble behaves reasonably under low-production, high-production, weekend, weekday, high-order, low-order, high-brix, low-brix, and unusual operating-intensity scenarios.
+Version 2.1 does not replace the forecasting model. The official model remains:
 
-   Synthetic scenarios are used only for behavioral stress testing and sensitivity analysis. They are not used as evidence of real-world predictive accuracy.
+```text
+Version 2.0 official ensemble
 
-2. Final model card
+70% post-only Extra Trees
+30% full-history AdaBoost
+```
 
-   Document the selected model, intended use, training data, features, validation strategy, limitations, uncertainty intervals, and retraining plan.
+Version 2.1 adds an evaluation and model-governance layer around that ensemble. It is designed to answer four practical questions:
 
-3. API and deployment packaging
+```text
+1. Does the model reproduce representative real operating days credibly?
+2. Does the forecast respond sensibly to small coherent operating-scale changes?
+3. Where do the post-only and full-history branches disagree?
+4. Can the system identify uncommon or unsupported input conditions?
+```
 
-   Package the selected model behind a prediction API using FastAPI.
+The final framework combines real historical replay evidence, local sensitivity analysis, branch-disagreement monitoring, operational-range checks, adversarial scenarios, OOD scenarios, automated runtime checks, and an auditable Excel report.
 
-4. Docker, tests, and CI
+## Evaluation structure
 
-   Add Docker packaging, unit tests, prediction-schema validation, and GitHub Actions CI.
+The final Version 2.1 suite contains 20 scenarios:
 
-5. Monitoring and retraining design
+```text
+8 historical reference replays
+8 paired local operating-scale perturbations
+4 adversarial or out-of-distribution perturbations
+```
 
-   Define practical monitoring checks and retraining triggers for future post-installation data.
+The three groups serve different purposes.
+
+Historical reference replays use complete real post-installation operating rows and retain their observed energy targets for supplementary replay-fit analysis.
+
+Paired local synthetic perturbations apply small controlled changes around those historical rows to measure local forecast sensitivity.
+
+
+Adversarial and OOD perturbations challenge the model with unusual combinations or values outside the observed development support so that warning behavior can be inspected.
+
+## How the eight historical reference rows were selected
+
+The historical examples were not chosen manually by browsing the final predictions. They were selected deterministically from the 37-row post-installation development window covering 2025-09-12 through 2025-10-24.
+
+The selection process first defines an operating archetype and then chooses the complete real row that is closest to that archetype.
+
+For every selected profile, the distance calculation uses squared standardized feature differences. Each feature is scaled by its interquartile range so that variables measured on large numerical scales, such as kilograms or Brix units, do not dominate variables measured on smaller scales. If the interquartile range is zero, the implementation falls back to the feature standard deviation and then to a scale of one if necessary.
+
+The selected row is therefore:
+
+```text
+the real candidate row with the minimum total standardized profile distance
+```
+
+This method has several advantages:
+
+```text
+- every historical scenario is a complete internally consistent real day
+- selection is reproducible rather than subjective
+- different measurement scales are handled fairly
+- calendar restrictions can be applied before nearest-profile selection
+- joint operating patterns can be targeted without fabricating feature combinations
+```
+
+The eight historical archetypes were defined as follows:
+
+| Historical scenario | Candidate restriction | Target profile used for nearest-row selection |
+| --- | --- | --- |
+| `baseline_median_weekday` | Weekdays only | Median profile across the operational features |
+| `low_production_low_hours` | All development rows | 15th-percentile activity profile |
+| `high_production_high_hours` | All development rows | 85th-percentile activity profile |
+| `weekend_moderate_production` | Weekends only | Median operational profile |
+| `high_orders_moderate_production` | Orders at or above the 75th percentile | 90th-percentile orders with median production and hours |
+| `low_orders_high_production` | Production at or above the 75th percentile | 10th-percentile orders, 90th-percentile production, and 75th-percentile hours |
+| `high_brix_day` | All development rows | 90th-percentile average Brix with median production |
+| `low_brix_day` | All development rows | 10th-percentile average Brix with median production |
+
+The low- and high-activity profiles use the activity feature bundle:
+
+```text
+total_kg
+total_nominal_kg
+total_brix_units
+total_hours
+total_pallets
+orders
+```
+
+The median operational profiles use:
+
+```text
+total_kg
+total_nominal_kg
+total_brix_units
+total_hours
+total_pallets
+orders
+avg_brix
+yield_ratio_actual_over_nominal
+```
+
+This selection strategy is important because it produces a small but deliberately varied set of real examples covering ordinary operation, low and high activity, weekend behavior, unusual order-production combinations, and upper- and lower-Brix conditions.
+
+## Historical replay fit against observed energy
+
+Because the eight historical references are real rows, each one has an observed `active_energy_kWh` value in the source dataset. The official 70/30 ensemble prediction was compared with that observed value.
+
+Deviation is defined as:
+
+```text
+prediction - actual
+```
+
+A positive value indicates overprediction and a negative value indicates underprediction.
+
+| Date | Historical scenario | Actual energy (kWh) | Official prediction (kWh) | Deviation (kWh) | Absolute error (kWh) | Deviation % |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 2025-09-19 | `high_production_high_hours` | 71,779.8 | 70,944.8 | -835.0 | 835.0 | -1.16% |
+| 2025-09-26 | `low_orders_high_production` | 64,127.5 | 65,298.4 | +1,170.9 | 1,170.9 | +1.83% |
+| 2025-10-04 | `low_brix_day` | 21,163.5 | 21,489.9 | +326.4 | 326.4 | +1.54% |
+| 2025-10-16 | `high_brix_day` | 10,768.4 | 11,468.6 | +700.2 | 700.2 | +6.50% |
+| 2025-10-18 | `low_production_low_hours` | 12,615.3 | 12,651.5 | +36.2 | 36.2 | +0.29% |
+| 2025-10-19 | `weekend_moderate_production` | 17,670.4 | 19,177.4 | +1,507.0 | 1,507.0 | +8.53% |
+| 2025-10-22 | `baseline_median_weekday` | 19,598.1 | 20,495.5 | +897.4 | 897.4 | +4.58% |
+| 2025-10-24 | `high_orders_moderate_production` | 20,198.7 | 20,107.3 | -91.4 | 91.4 | -0.45% |
+
+Summary replay-fit metrics across the eight examples were:
+
+```text
+MAE:                     695.559 kWh
+RMSE:                    847.874 kWh
+MAPE:                      3.110%
+mean signed deviation:   +463.970 kWh
+aggregate actual:       237,921.700 kWh
+aggregate prediction:   241,633.460 kWh
+aggregate deviation:     +3,711.760 kWh
+aggregate deviation %:    +1.560%
+```
+
+The ensemble overpredicted six of the eight examples and underpredicted two. The mean signed deviation of approximately +464 kWh indicates a modest positive bias across this selected replay set, while the aggregate prediction remained only 1.56% above the observed total.
+
+The closest matches were:
+
+```text
+low_production_low_hours:
+absolute error 36.2 kWh, deviation +0.29%
+
+high_orders_moderate_production:
+absolute error 91.4 kWh, deviation -0.45%
+```
+
+The largest replay error occurred for the weekend moderate-production profile:
+
+```text
+absolute error 1,507.0 kWh
+deviation +8.53%
+```
+
+The weekend-moderate profile produced the largest replay deviation at +8.53%, while the selected high-Brix profile produced a deviation of +6.50%. These two profiles are useful monitoring candidates because they identify operating conditions in which the ensemble was less precise than for the other selected archetypes. This is not evidence of model failure. It is consistent with the limited number of post-installation examples available for these operating conditions and indicates where additional real observations would most improve confidence. The high-Brix result describes the complete selected operating profile, which also contained relatively low production volume and operating hours, rather than an isolated effect of Brix.
+
+The historical replay MAE is lower than the official chronological validation and test MAE:
+
+```text
+historical replay MAE: 695.559 kWh
+validation MAE:        861.033 kWh
+final test MAE:       1,022.456 kWh
+```
+
+This replay result meaningfully strengthens the model evidence by showing that the final refitted ensemble reproduces a deliberately varied set of representative real operating days with low error and good aggregate calibration. It is reported as supplementary representative-profile fit, while the chronological validation and final test periods remain the primary evidence of generalization.
+
+## Paired local operating-scale perturbations
+
+Each historical reference row is paired with one controlled local perturbation.
+
+The local scenario applies an approximately 5% coherent increase to:
+
+```text
+total_kg
+total_nominal_kg
+total_brix_units
+total_hours
+```
+
+The following values are preserved from the historical parent:
+
+```text
+orders
+total_pallets
+avg_brix
+weekday
+is_weekend
+month
+year
+week_of_year
+```
+
+The `orders` feature is preserved because it represents a discrete nonnegative count rather than a continuous operating-scale variable.
+
+The confirmed derived feature is recalculated after the perturbation:
+
+```text
+yield_ratio_actual_over_nominal =
+    total_kg / total_nominal_kg
+```
+
+This design increases the overall scale of a similar operating day while preserving its calendar context, order count, average Brix, pallet count, and approximate production intensity.
+
+The paired synthetic scenarios therefore provide a controlled local sensitivity test around eight real operating profiles.
+
+## Adversarial and out-of-distribution scenarios
+
+Four additional scenarios test operating combinations that are deliberately unusual or unsupported:
+
+```text
+high_intensity_kg_low_hours
+low_intensity_kg_high_hours
+outside_observed_high_activity
+near_shutdown_low_activity
+```
+
+The two adversarial scenarios alter operating hours while retaining the production profile of their historical anchor. This creates deliberately unusual production-intensity combinations.
+
+### Production-intensity diagnostic
+
+Production intensity is calculated as `kg_per_hour = total_kg / total_hours`.
+
+`kg_per_hour` represents the amount of production processed per operating hour.
+
+A high-production profile combined with very low operating hours creates an unusually high `kg_per_hour` value. A low-production profile combined with very high operating hours creates an unusually low `kg_per_hour` value.
+
+This quantity is used only as an evaluation and operational-support diagnostic. It is not an additional input feature used by either branch of the official forecasting model.
+
+The diagnostic was introduced because `total_kg` and `total_hours` may each appear acceptable when checked separately, while their relationship can still represent an unusual or operationally unsupported production intensity.
+
+The two adversarial scenarios retain the production profile of their historical anchor while deliberately changing operating hours:
+
+- `high_intensity_kg_low_hours`
+- `low_intensity_kg_high_hours`
+
+The first creates unusually high production per operating hour. The second creates unusually low production per operating hour.
+
+These scenarios test whether the operational-support safeguards identify abnormal relationships between production volume and operating time, rather than evaluating each feature only in isolation.
+
+The high OOD scenario places activity features above their observed development maxima.
+
+The near-shutdown scenario reduces activity features below their observed development minima.
+
+These scenarios are used to inspect forecast behavior, range classification, disagreement, and warning generation at the edges of model support.
+
+## Scenario provenance and the meaning of boundary cases
+
+Every scenario records:
+
+```text
+scenario_origin
+parent_scenario_name
+perturbation_type
+perturbation_scale
+construction_method
+scenario_class
+operational_range_status
+calendar_coverage_status
+```
+
+`scenario_class` and `operational_range_status` answer different questions.
+
+`scenario_class` describes why the scenario was included in the evaluation. It is a design label such as plausible, boundary, adversarial, or out of distribution.
+
+`operational_range_status` is calculated after construction by comparing each operational feature with its observed post-installation development range and q10-q90 interval.
+
+A boundary scenario can therefore remain inside the central marginal ranges. For example, `low_orders_high_production` was selected because the combination of relatively low orders and high production is an important joint operating pattern. Each individual feature may still lie inside its own q10-q90 interval, so the marginal range checker can classify the row as `inside_typical_development_range`.
+
+This is analytically consistent because:
+
+```text
+boundary scenario class = design importance of the complete profile
+operational range status = marginal support of individual features
+```
+
+The current range system evaluates each feature separately. It does not estimate multivariate density or the probability of the complete feature combination. A row may therefore be individually typical on every variable while still being interesting at the joint-profile level.
+
+This distinction is useful rather than problematic. It allows the evaluation to retain domain-relevant joint patterns without incorrectly labeling every unusual combination as OOD.
+
+## Input-support classification
+
+Operational familiarity is evaluated using the post-installation development period.
+
+The classification logic is:
+
+```text
+outside_observed_range:
+at least one operational feature is below the observed minimum
+or above the observed maximum
+
+development_distribution_tail:
+all operational features remain inside observed min/max limits,
+but at least one variable feature is below q10 or above q90
+
+inside_typical_development_range:
+all variable operational features remain between q10 and q90
+```
+
+Features that were constant during development are handled explicitly:
+
+```text
+constant_in_development:
+the scenario uses the only observed development value
+
+outside_observed_range:
+the scenario changes a constant feature away from its only observed value
+```
+
+Calendar validity, operational support, schema validity, and branch disagreement are kept as separate diagnostic dimensions.
+
+## Automated verification
+
+The final implementation contains:
+
+```text
+17 unit tests
+27 runtime hard checks
+```
+
+All 17 unit tests passed.
+
+All 27 runtime hard checks passed.
+
+The checks verify:
+
+```text
+- unique scenario names
+- valid scenario schemas and metadata
+- correct historical, local, and stress-scenario counts
+- one-to-one historical/local pairing
+- correct local perturbation values
+- preserved orders, pallets, average Brix, and calendar context
+- nonnegative integer-like order counts
+- consistent derived yield ratios
+- finite and nonnegative predictions
+- exact 70/30 and 60/40 ensemble mathematics
+- explicit handling of constant features
+- correct OOD range flags
+- valid integer order counts in OOD scenarios
+```
+
+The final result was:
+
+```text
+hard checks passed: 27
+hard-check failures: 0
+invalid schemas: 0
+```
+
+## Operational-range results
+
+The 20 scenarios were classified as:
+
+```text
+inside typical development range: 9
+development-distribution tail:    7
+outside observed range:           4
+```
+
+The eight paired local perturbations contributed:
+
+```text
+4 inside-typical scenarios
+4 distribution-tail scenarios
+0 outside-range scenarios
+```
+
+The local perturbations therefore remained within observed operational support. Some moved from the central q10-q90 region into the development tails without exceeding observed minima or maxima.
+
+The clearest example was:
+
+```text
+high_production_high_hours:
+inside_typical_development_range
+
+high_production_high_hours_operating_scale_up_5pct:
+development_distribution_tail
+```
+
+The 5% increase made the profile less common but still supported by observed development values.
+
+All four deliberately adversarial or OOD scenarios were classified outside the observed operational range.
+
+## Broad behavioral results
+
+Representative official 70/30 ensemble predictions were:
+
+```text
+near-shutdown activity:             11,734 kWh
+low production and low hours:       12,652 kWh
+representative weekday baseline:    20,495 kWh
+high production and high hours:     70,945 kWh
+outside-observed high activity:     75,345 kWh
+```
+
+The broad directional ordering was:
+
+```text
+high activity > baseline
+baseline > low activity
+high activity > low activity
+baseline > near shutdown
+```
+
+All four broad directional checks passed.
+
+This supports a coherent ordering between operating scale and forecast energy consumption across the designed profiles.
+
+## Paired local sensitivity results
+
+All eight paired local perturbations moved in the expected direction.
+
+```text
+paired directional checks passed: 8
+locally flat responses:           0
+diagnostic warnings:              0
+```
+
+The official 70/30 ensemble responses were:
+
+| Historical reference | Prediction change | Relative change |
+| --- | ---: | ---: |
+| `high_orders_moderate_production` | +2,030.734 kWh | +10.099% |
+| `baseline_median_weekday` | +645.812 kWh | +3.151% |
+| `weekend_moderate_production` | +414.427 kWh | +2.161% |
+| `low_production_low_hours` | +194.019 kWh | +1.534% |
+| `low_brix_day` | +244.485 kWh | +1.138% |
+| `low_orders_high_production` | +538.368 kWh | +0.824% |
+| `high_brix_day` | +85.483 kWh | +0.745% |
+| `high_production_high_hours` | +426.529 kWh | +0.601% |
+
+The nonlinear response sizes are consistent with the piecewise behavior of tree ensembles. A small change may remain within the same terminal regions, move only one component branch, or cross several tree thresholds.
+
+The strongest local response occurred for `high_orders_moderate_production`:
+
+```text
+official ensemble change:    +2,030.734 kWh, +10.099%
+post-only Extra Trees change: +1,263.583 kWh
+full-history AdaBoost change: +3,820.752 kWh
+```
+
+This scenario is the clearest local sensitivity hotspot and should receive additional monitoring in a future prediction service.
+
+## Component-model disagreement
+
+Absolute branch disagreement is the difference between the post-only and full-history predictions in kWh.
+
+Relative disagreement expresses that difference as a percentage of the mean magnitude of the two component predictions.
+
+The maximum absolute disagreement was:
+
+```text
+scenario: low_orders_high_production
+absolute disagreement: 5,190.830 kWh
+relative disagreement: 7.825%
+```
+
+The maximum relative disagreement was:
+
+```text
+scenario: high_orders_moderate_production_operating_scale_up_5pct
+absolute disagreement: 3,624.241 kWh
+relative disagreement: 15.852%
+```
+
+The predefined thresholds are:
+
+```text
+low:      below 10%
+moderate: 10% to below 20%
+high:     20% or greater
+```
+
+The final result was:
+
+```text
+low-disagreement scenarios:      15
+moderate-disagreement scenarios: 5
+high-disagreement scenarios:     0
+```
+
+No scenario reached the high-disagreement threshold.
+
+The disagreement analysis also shows why OOD status and branch agreement must be reported independently. The outside-observed high-activity scenario had low component disagreement even though its inputs exceeded observed development limits. Agreement between two tree models outside their support does not remove the range warning.
+
+## Evidence interpretation
+
+Version 2.1 adds three complementary forms of evidence:
+
+```text
+historical replay fit on representative real days
+local behavioral sensitivity around those days
+stress and support diagnostics for unusual inputs
+```
+
+The historical replay comparison shows low error and good aggregate calibration across eight deliberately varied real operating profiles.
+
+The paired analysis shows consistent directional responses around every selected anchor.
+
+The stress suite shows that uncommon and outside-range conditions can be identified and that branch disagreement can be surfaced separately.
+
+Chronological validation and final holdout testing remain the primary generalization measures. Replay metrics describe representative-profile fit after final refitting, while the synthetic sensitivity results describe how the model responds to designed input changes and branch disagreement is used as a monitoring signal rather than as a calibrated prediction interval.
+
+
+## MLflow tracking
+
+The official Version 2.1 run was logged separately from candidate-model training runs.
+
+```text
+experiment:
+Damavand Energy Forecasting
+
+run name:
+2.1 Behavioral Scenario Evaluation and Synthetic Stress Test
+
+run type:
+behavioral_scenario_evaluation
+
+model role:
+official_champion_diagnostic
+
+forecasting model version:
+2.0_ensemble_70_30
+
+stress-test version:
+2.1
+
+status:
+official
+```
+
+MLflow run ID:
+
+```text
+c07bfa3a352f49e3b85bb838e62bdee7
+```
+
+The run records scenario counts, verification results, range classifications, paired sensitivity outcomes, maximum branch disagreement, thresholds, ensemble weights, methodology, source code, tests, the Excel report, and all four diagnostic figures.
+
+## Version 2.1 artifacts
+
+The final report is saved as:
+
+```text
+reports/ensemble_2_1_behavioral_stress_test_report.xlsx
+```
+
+The figures are saved under:
+
+```text
+reports/figures/ensemble_2_1_behavioral_stress_test
+```
+
+The four figures are:
+
+```text
+branch_disagreement_kwh.png
+branch_disagreement_pct.png
+official_70_30_scenario_predictions.png
+paired_local_sensitivity_delta_pct.png
+```
+
+The implementation and tests are:
+
+```text
+src/stress_test_ensemble.py
+tests/test_stress_test_ensemble.py
+```
+
+## Version 2.1 decision
+
+Version 2.1 is accepted as the official post-selection evaluation for the Version 2.0 ensemble.
+
+```text
+Official forecasting model:
+Version 2.0 70/30 ensemble
+
+Official post-selection evaluation:
+Version 2.1 behavioral scenario evaluation and synthetic stress test
+```
+
+The combined evidence supports the following conclusions:
+
+```text
+- the ensemble reproduces representative historical profiles with low replay error
+- broad activity ordering is coherent
+- all eight local operating-scale changes produce the expected forecast direction
+- local sensitivity hotspots are identifiable
+- component disagreement is measurable and operationally usable
+- typical, tail, and outside-range conditions are distinguished
+- OOD safeguards and implementation checks operate correctly
+```
+
+## Current final modeling conclusion
+
+The official forecasting model remains:
+
+```text
+70% post-only Extra Trees
+30% full-history AdaBoost
+```
+
+Its chronological evaluation results are:
+
+```text
+validation MAE: 861.033368
+validation R²: 0.809018
+validation total deviation: 0.633766%
+validation MAPE: 4.668177%
+
+final holdout test MAE: 1022.455700
+final holdout test R²: 0.754668
+final holdout test MAPE: 6.213821%
+final holdout total deviation: 1.751245%
+```
+
+Its supplementary historical replay results are:
+
+```text
+8 representative real profiles
+replay MAE: 695.559 kWh
+replay RMSE: 847.874 kWh
+replay MAPE: 3.110%
+aggregate deviation %: +1.560%
+```
+
+The official ensemble is therefore presented as a validated and defensible industrial energy-forecasting candidate under the available post-installation evidence, with explicit behavioral checks and deployment-oriented safeguards.
+
+The main remaining evidence limitation is the short post-installation evaluation period:
+
+```text
+validation: 7 days
+test:       7 days
+```
+
+The model and ensemble weights should be revalidated as additional real post-installation observations become available.
+
+## Next project steps
+
+The modeling and post-selection evaluation phase is complete.
+
+The next step is to create the final model card covering intended use, model architecture, data regimes, features, validation strategy, performance, replay evidence, behavioral findings, limitations, unsupported uses, monitoring requirements, and retraining triggers.
+
+After the model card, the official ensemble should be packaged behind a FastAPI prediction service with validated single-row and batch endpoints.
+
+The service should then be containerized with Docker and supported by automated API, integration, and schema-validation tests.
+
+GitHub Actions should run the complete unit, API, and integration test suite automatically.
+
+The separate 100-day synthetic dataset may later be used for batch-inference, API, Docker, calendar-coverage, and warning-system testing. It should remain separate from the real chronological performance evaluation.
+
+The final engineering phase should define monitoring for input drift, operational-range status, component disagreement, prediction distributions, delayed actual-error metrics, and retraining triggers.
+
