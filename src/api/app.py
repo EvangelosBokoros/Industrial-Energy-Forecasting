@@ -1,9 +1,19 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+import json
+import logging
+import re
+import time
+from collections.abc import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+)
 from contextlib import asynccontextmanager
+from uuid import uuid4
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 
 from src.api.schemas import (
     BatchPredictionRequest,
@@ -19,6 +29,64 @@ from src.serving.prediction_service import (
     PredictionResult,
     PredictionService,
 )
+
+
+REQUEST_ID_HEADER = "X-Request-ID"
+
+REQUEST_ID_PATTERN = re.compile(
+    r"^[A-Za-z0-9._-]{1,128}$"
+)
+
+logger = logging.getLogger("jmm.api")
+
+
+def _resolve_request_id(
+    header_value: str | None,
+) -> str:
+    """
+    Reuse a safe caller-provided request ID or generate a new UUID.
+
+    Restricting the allowed characters prevents malformed values
+    from entering response headers and structured logs.
+    """
+
+    if header_value is not None:
+        candidate = header_value.strip()
+
+        if REQUEST_ID_PATTERN.fullmatch(candidate):
+            return candidate
+
+    return str(uuid4())
+
+
+def _serialize_request_log(
+    *,
+    event: str,
+    request_id: str,
+    method: str,
+    path: str,
+    status_code: int,
+    duration_ms: float,
+    error_type: str | None = None,
+) -> str:
+    """Create one machine-readable JSON log record."""
+
+    record: dict[str, object] = {
+        "event": event,
+        "request_id": request_id,
+        "method": method,
+        "path": path,
+        "status_code": status_code,
+        "duration_ms": duration_ms,
+    }
+
+    if error_type is not None:
+        record["error_type"] = error_type
+
+    return json.dumps(
+        record,
+        sort_keys=True,
+    )
 
 
 @asynccontextmanager
@@ -44,6 +112,89 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+
+@app.middleware("http")
+async def request_observability(
+    request: Request,
+    call_next: Callable[
+        [Request],
+        Awaitable[Response],
+    ],
+) -> Response:
+    """
+    Add request correlation, timing, structured logs, and safe errors.
+    """
+
+    request_id = _resolve_request_id(
+        request.headers.get(REQUEST_ID_HEADER)
+    )
+
+    request.state.request_id = request_id
+
+    started_at = time.perf_counter()
+
+    try:
+        response = await call_next(request)
+
+    except Exception as error:
+        duration_ms = round(
+            (
+                time.perf_counter()
+                - started_at
+            )
+            * 1000.0,
+            3,
+        )
+
+        logger.exception(
+            _serialize_request_log(
+                event="request_failed",
+                request_id=request_id,
+                method=request.method,
+                path=request.url.path,
+                status_code=500,
+                duration_ms=duration_ms,
+                error_type=type(error).__name__,
+            )
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": "Internal server error",
+                "request_id": request_id,
+            },
+            headers={
+                REQUEST_ID_HEADER: request_id,
+            },
+        )
+
+    duration_ms = round(
+        (
+            time.perf_counter()
+            - started_at
+        )
+        * 1000.0,
+        3,
+    )
+
+    response.headers[
+        REQUEST_ID_HEADER
+    ] = request_id
+
+    logger.info(
+        _serialize_request_log(
+            event="request_completed",
+            request_id=request_id,
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+        )
+    )
+
+    return response
 
 
 def _build_prediction_response(

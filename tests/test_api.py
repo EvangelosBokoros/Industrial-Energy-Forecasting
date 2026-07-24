@@ -1,4 +1,5 @@
 import math
+import json
 
 import pytest
 from fastapi.testclient import TestClient
@@ -391,3 +392,117 @@ def test_batch_prediction_rejects_more_than_500_records(
     )
 
     assert response.status_code == 422
+def test_response_contains_generated_request_id(client):
+    response = client.get("/health")
+
+    assert response.status_code == 200
+
+    request_id = response.headers.get(
+        "X-Request-ID"
+    )
+
+    assert request_id is not None
+    assert request_id != ""
+
+
+def test_valid_caller_request_id_is_preserved(client):
+    response = client.get(
+        "/health",
+        headers={
+            "X-Request-ID": "portfolio-test-123",
+        },
+    )
+
+    assert response.status_code == 200
+
+    assert response.headers["X-Request-ID"] == (
+        "portfolio-test-123"
+    )
+
+
+def test_request_is_logged_as_structured_json(
+    client,
+    caplog,
+):
+    caplog.set_level(
+        "INFO",
+        logger="jmm.api",
+    )
+
+    response = client.get(
+        "/health",
+        headers={
+            "X-Request-ID": "structured-log-test",
+        },
+    )
+
+    assert response.status_code == 200
+
+    matching_records = [
+        record
+        for record in caplog.records
+        if (
+            record.name == "jmm.api"
+            and "structured-log-test"
+            in record.getMessage()
+        )
+    ]
+
+    assert matching_records
+
+    log_record = json.loads(
+        matching_records[-1].getMessage()
+    )
+
+    assert log_record["event"] == (
+        "request_completed"
+    )
+    assert log_record["request_id"] == (
+        "structured-log-test"
+    )
+    assert log_record["method"] == "GET"
+    assert log_record["path"] == "/health"
+    assert log_record["status_code"] == 200
+    assert log_record["duration_ms"] >= 0
+
+
+def test_unhandled_error_returns_safe_response(
+    client,
+    monkeypatch,
+):
+    def raise_internal_error(
+        raw_input,
+    ):
+        raise RuntimeError(
+            "Sensitive internal implementation detail"
+        )
+
+    monkeypatch.setattr(
+        client.app.state.prediction_service,
+        "predict",
+        raise_internal_error,
+    )
+
+    response = client.post(
+        "/v1/predict",
+        json=VALID_PAYLOAD,
+        headers={
+            "X-Request-ID": "failure-test-001",
+        },
+    )
+
+    assert response.status_code == 500
+
+    assert response.json() == {
+        "detail": "Internal server error",
+        "request_id": "failure-test-001",
+    }
+
+    assert response.headers["X-Request-ID"] == (
+        "failure-test-001"
+    )
+
+    assert (
+        "Sensitive internal implementation detail"
+        not in response.text
+    )
