@@ -1,8 +1,11 @@
-import math
 import json
+import math
 
 import pytest
 from fastapi.testclient import TestClient
+from prometheus_client.parser import (
+    text_string_to_metric_families,
+)
 
 from src.api.app import app
 
@@ -25,11 +28,159 @@ def client():
         yield test_client
 
 
+def _metric_value(
+    metrics_text: str,
+    sample_name: str,
+    labels: dict[str, str],
+) -> float:
+    """Return one Prometheus sample value or zero when absent."""
+
+    for family in text_string_to_metric_families(
+        metrics_text
+    ):
+        for sample in family.samples:
+            if (
+                sample.name == sample_name
+                and all(
+                    sample.labels.get(label_name)
+                    == label_value
+                    for label_name, label_value
+                    in labels.items()
+                )
+            ):
+                return float(sample.value)
+
+    return 0.0
+
+
 def test_health_endpoint_returns_ok(client):
     response = client.get("/health")
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_metrics_endpoint_exposes_service_metrics(client):
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert response.headers[
+        "content-type"
+    ].startswith("text/plain")
+
+    body = response.text
+
+    assert "jmm_http_requests_total" in body
+    assert (
+        "jmm_http_request_duration_seconds"
+        in body
+    )
+    assert "jmm_prediction_records_total" in body
+    assert "jmm_operational_range_total" in body
+    assert "jmm_calendar_coverage_total" in body
+    assert "jmm_branch_disagreement_total" in body
+    assert "jmm_warning_codes_total" in body
+
+
+def test_prediction_updates_service_metrics(client):
+    before = client.get("/metrics").text
+
+    before_prediction_count = _metric_value(
+        before,
+        "jmm_prediction_records_total",
+        {"endpoint": "single"},
+    )
+    before_request_count = _metric_value(
+        before,
+        "jmm_http_requests_total",
+        {
+            "method": "POST",
+            "path": "/v1/predict",
+            "status_code": "200",
+        },
+    )
+    before_operational_count = _metric_value(
+        before,
+        "jmm_operational_range_total",
+        {
+            "status": (
+                "inside_typical_development_range"
+            )
+        },
+    )
+    before_disagreement_count = _metric_value(
+        before,
+        "jmm_branch_disagreement_total",
+        {"status": "moderate"},
+    )
+    before_calendar_warning_count = _metric_value(
+        before,
+        "jmm_warning_codes_total",
+        {"code": "UNSEEN_CALENDAR_VALUE"},
+    )
+
+    prediction_response = client.post(
+        "/v1/predict",
+        json=VALID_PAYLOAD,
+    )
+
+    assert prediction_response.status_code == 200
+    assert (
+        prediction_response.json()[
+            "branch_disagreement_status"
+        ]
+        == "moderate"
+    )
+
+    after = client.get("/metrics").text
+
+    assert _metric_value(
+        after,
+        "jmm_prediction_records_total",
+        {"endpoint": "single"},
+    ) == pytest.approx(
+        before_prediction_count + 1.0
+    )
+
+    assert _metric_value(
+        after,
+        "jmm_http_requests_total",
+        {
+            "method": "POST",
+            "path": "/v1/predict",
+            "status_code": "200",
+        },
+    ) == pytest.approx(
+        before_request_count + 1.0
+    )
+
+    assert _metric_value(
+        after,
+        "jmm_operational_range_total",
+        {
+            "status": (
+                "inside_typical_development_range"
+            )
+        },
+    ) == pytest.approx(
+        before_operational_count + 1.0
+    )
+
+    assert _metric_value(
+        after,
+        "jmm_branch_disagreement_total",
+        {"status": "moderate"},
+    ) == pytest.approx(
+        before_disagreement_count + 1.0
+    )
+
+    assert _metric_value(
+        after,
+        "jmm_warning_codes_total",
+        {"code": "UNSEEN_CALENDAR_VALUE"},
+    ) == pytest.approx(
+        before_calendar_warning_count + 1.0
+    )
 
 
 def test_prediction_endpoint_returns_valid_response(client):
@@ -78,7 +229,7 @@ def test_prediction_endpoint_returns_valid_response(client):
         == "inside_typical_development_range"
     )
 
-    # The development reference contains ISO weeks 37–43.
+    # The development reference contains ISO weeks 37-43.
     # October 31, 2025 belongs to ISO week 44.
     assert (
         body["calendar_coverage_status"]
@@ -392,6 +543,8 @@ def test_batch_prediction_rejects_more_than_500_records(
     )
 
     assert response.status_code == 422
+
+
 def test_response_contains_generated_request_id(client):
     response = client.get("/health")
 

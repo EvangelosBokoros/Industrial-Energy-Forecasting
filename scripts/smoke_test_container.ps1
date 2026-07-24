@@ -341,6 +341,58 @@ try {
             "Single and one-row-equivalent batch predictions differ"
         )
 
+    Write-Host "Testing operational metrics..."
+    $MetricsResponse = Invoke-WebRequest `
+        -Uri "$BaseUri/metrics" `
+        -UseBasicParsing `
+        -TimeoutSec 30
+
+    Assert-Equal `
+        -Actual ([int]$MetricsResponse.StatusCode) `
+        -Expected 200 `
+        -Message "Metrics endpoint returned an unexpected status"
+
+    $MetricsText = [string]$MetricsResponse.Content
+
+    $RequiredMetricNames = @(
+        "jmm_http_requests_total",
+        "jmm_http_request_duration_seconds",
+        "jmm_prediction_records_total",
+        "jmm_operational_range_total",
+        "jmm_calendar_coverage_total",
+        "jmm_branch_disagreement_total",
+        "jmm_warning_codes_total"
+    )
+
+    foreach ($MetricName in $RequiredMetricNames) {
+        if ($MetricsText -notmatch [regex]::Escape($MetricName)) {
+            throw (
+                "Metrics endpoint did not expose required metric: {0}" -f
+                $MetricName
+            )
+        }
+    }
+
+    if (
+        $MetricsText -notmatch
+        'jmm_prediction_records_total\{endpoint="single"\}\s+1(?:\.0)?'
+    ) {
+        throw (
+            "Metrics did not record exactly one successful single " +
+            "prediction."
+        )
+    }
+
+    if (
+        $MetricsText -notmatch
+        'jmm_prediction_records_total\{endpoint="batch"\}\s+2(?:\.0)?'
+    ) {
+        throw (
+            "Metrics did not record exactly two successful batch " +
+            "prediction records."
+        )
+    }
+
     Write-Host ""
     Write-Host "Docker smoke test PASSED."
     Write-Host (

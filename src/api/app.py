@@ -14,7 +14,12 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    generate_latest,
+)
 
+from src.api.metrics import ApiMetrics
 from src.api.schemas import (
     BatchPredictionRequest,
     BatchPredictionResponse,
@@ -59,6 +64,18 @@ def _resolve_request_id(
     return str(uuid4())
 
 
+def _resolve_metrics_path(request: Request) -> str:
+    """Return a bounded route label for HTTP metrics."""
+
+    route = request.scope.get("route")
+    route_path = getattr(route, "path", None)
+
+    if isinstance(route_path, str):
+        return route_path
+
+    return "__unmatched__"
+
+
 def _serialize_request_log(
     *,
     event: str,
@@ -98,6 +115,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """
 
     app.state.prediction_service = PredictionService()
+    app.state.metrics = ApiMetrics()
 
     yield
 
@@ -123,7 +141,7 @@ async def request_observability(
     ],
 ) -> Response:
     """
-    Add request correlation, timing, structured logs, and safe errors.
+    Add request correlation, timing, metrics, logs, and safe errors.
     """
 
     request_id = _resolve_request_id(
@@ -138,13 +156,21 @@ async def request_observability(
         response = await call_next(request)
 
     except Exception as error:
+        duration_seconds = (
+            time.perf_counter()
+            - started_at
+        )
         duration_ms = round(
-            (
-                time.perf_counter()
-                - started_at
-            )
-            * 1000.0,
+            duration_seconds * 1000.0,
             3,
+        )
+
+        metrics: ApiMetrics = request.app.state.metrics
+        metrics.observe_http_request(
+            method=request.method,
+            path=_resolve_metrics_path(request),
+            status_code=500,
+            duration_seconds=duration_seconds,
         )
 
         logger.exception(
@@ -170,18 +196,26 @@ async def request_observability(
             },
         )
 
+    duration_seconds = (
+        time.perf_counter()
+        - started_at
+    )
     duration_ms = round(
-        (
-            time.perf_counter()
-            - started_at
-        )
-        * 1000.0,
+        duration_seconds * 1000.0,
         3,
     )
 
     response.headers[
         REQUEST_ID_HEADER
     ] = request_id
+
+    metrics = request.app.state.metrics
+    metrics.observe_http_request(
+        method=request.method,
+        path=_resolve_metrics_path(request),
+        status_code=response.status_code,
+        duration_seconds=duration_seconds,
+    )
 
     logger.info(
         _serialize_request_log(
@@ -293,6 +327,23 @@ def readiness(request: Request) -> ReadinessResponse:
 
 
 @app.get(
+    "/metrics",
+    include_in_schema=False,
+)
+def metrics(request: Request) -> Response:
+    """Expose Prometheus-compatible service metrics."""
+
+    api_metrics: ApiMetrics = request.app.state.metrics
+
+    return Response(
+        content=generate_latest(
+            api_metrics.registry
+        ),
+        media_type=CONTENT_TYPE_LATEST,
+    )
+
+
+@app.get(
     "/v1/model",
     response_model=ModelInfoResponse,
 )
@@ -352,11 +403,19 @@ def predict(
         payload.model_dump(mode="python")
     )
 
-    return _build_prediction_response(
+    response = _build_prediction_response(
         payload=payload,
         result=result,
         metadata=service.model_bundle.metadata,
     )
+
+    metrics: ApiMetrics = request.app.state.metrics
+    metrics.observe_prediction(
+        result=result,
+        endpoint="single",
+    )
+
+    return response
 
 
 @app.post(
@@ -376,6 +435,7 @@ def predict_batch(
     )
     metadata = service.model_bundle.metadata
 
+    prediction_results: list[PredictionResult] = []
     predictions: list[PredictionResponse] = []
 
     for record in payload.records:
@@ -383,12 +443,22 @@ def predict_batch(
             record.model_dump(mode="python")
         )
 
+        prediction_results.append(result)
+
         predictions.append(
             _build_prediction_response(
                 payload=record,
                 result=result,
                 metadata=metadata,
             )
+        )
+
+    metrics: ApiMetrics = request.app.state.metrics
+
+    for result in prediction_results:
+        metrics.observe_prediction(
+            result=result,
+            endpoint="batch",
         )
 
     return BatchPredictionResponse(
