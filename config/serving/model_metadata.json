@@ -2,6 +2,7 @@
   "schema_version": "1.0",
   "api_version": "v1",
   "artifact_path": "models/ensemble_2_0_model.joblib",
+  "artifact_sha256": "a4a7945ca5e77387bab3854597f380f8445b35849ef3b640b340507b26112282",
   "modeling_version": "2.0",
   "run_name": "2.0 Post-Only and Full-History Ensemble Diagnostic",
   "ensemble_type": "constrained_weighted_prediction_average",

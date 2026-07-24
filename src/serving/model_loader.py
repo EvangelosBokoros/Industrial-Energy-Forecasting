@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import math
 from dataclasses import dataclass
@@ -33,6 +35,58 @@ def _resolve_project_path(path_value: str) -> Path:
         return path
 
     return PROJECT_ROOT / path
+
+
+def _calculate_sha256(file_path: Path) -> str:
+    """Calculate the SHA-256 checksum of a file."""
+
+    digest = hashlib.sha256()
+
+    with file_path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+
+    return digest.hexdigest()
+
+
+def _validate_artifact_checksum(
+    *,
+    metadata: dict[str, Any],
+    artifact_path: Path,
+) -> None:
+    """Verify the model artifact before deserializing it."""
+
+    expected_checksum = metadata.get("artifact_sha256")
+
+    if not isinstance(expected_checksum, str):
+        raise ValueError(
+            "Model metadata must contain artifact_sha256"
+        )
+
+    expected_checksum = expected_checksum.strip().lower()
+
+    if (
+        len(expected_checksum) != 64
+        or any(
+            character not in "0123456789abcdef"
+            for character in expected_checksum
+        )
+    ):
+        raise ValueError(
+            "artifact_sha256 must be a valid SHA-256 checksum"
+        )
+
+    actual_checksum = _calculate_sha256(artifact_path)
+
+    if not hmac.compare_digest(
+        actual_checksum,
+        expected_checksum,
+    ):
+        raise ValueError(
+            "Model artifact checksum mismatch: "
+            f"expected={expected_checksum}, "
+            f"actual={actual_checksum}"
+        )
 
 
 def _validate_component(
@@ -163,6 +217,11 @@ def load_model_bundle(
         raise FileNotFoundError(
             f"Model artifact was not found: {artifact_path}"
         )
+
+    _validate_artifact_checksum(
+        metadata=metadata,
+        artifact_path=artifact_path,
+    )
 
     artifact = joblib.load(artifact_path)
 
