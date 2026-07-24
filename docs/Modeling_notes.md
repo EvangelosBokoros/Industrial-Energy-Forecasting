@@ -26,25 +26,26 @@ The project is intentionally structured as a production-style ML workflow rather
 
 ## Current production-safe selected model
 
-The current selected production-safe baseline is:
+The current selected production-safe model is:
 
 ```text
 Feature set: full
-Selected model: gradient_boosting
+Selected model: extra_trees
 ```
 
-The selected baseline uses all original production, operational, and calendar features.
+Extra Trees became the selected model after the small-data candidate comparison in version 0.5.
 
-This model is selected because it provides the best balance of:
+This model is selected because it provides the strongest current balance of:
 
-* validation performance
-* domain credibility
-* full production-volume representation
-* stable holdout behavior
+* validation MAE
+* validation R²
+* validation total deviation
+* final holdout test MAE
+* final holdout test R²
+* full-feature domain credibility
 * reproducible MLflow tracking
-* interpretability of the modeling decision
 
-The reduced feature set without `total_kg` achieved slightly better validation MAE, but it is not selected as the production-safe baseline because it removes a core production-volume driver.
+The model is selected within the current real post-installation benchmark. Because the validation and test windows are short, the result is interpreted as a strong current candidate rather than an absolute final claim about all future operating conditions.
 
 ## Data and split strategy
 
@@ -116,6 +117,11 @@ random_forest
 gradient_boosting
 catboost_regularized
 xgboost_regularized
+huber_regression
+bayesian_ridge
+elastic_net
+svr_rbf_scaled
+extra_trees
 ```
 
 Candidate model selection is based on validation MAE.
@@ -175,9 +181,9 @@ test total deviation CI: [-3.1223, 14.9665]
 
 ### Version 0.1 decision
 
-The full-feature Gradient Boosting model is retained as the initial production-safe baseline.
+The full-feature Gradient Boosting model was retained as the initial production-safe baseline.
 
-It is not treated as the final model for all future work, but it is the current best real-data baseline before additional small-data candidates, synthetic simulation, and full-history forecasting extensions.
+It was not treated as the final model for all future work, but it provided the first strong real-data benchmark.
 
 ## Multicollinearity diagnostic
 
@@ -214,7 +220,7 @@ week_of_year
 
 The VIF diagnostic is useful, but VIF is not treated as an automatic feature-selection rule.
 
-VIF is a linear redundancy diagnostic. The selected candidate model is tree-based Gradient Boosting. Tree-based models can tolerate correlated predictors better than linear models.
+VIF is a linear redundancy diagnostic. Several selected candidate models are tree-based ensembles. Tree-based models can tolerate correlated predictors better than linear models.
 
 Therefore, VIF results were used to design feature-set sensitivity checks rather than to automatically replace the full feature set.
 
@@ -390,9 +396,9 @@ Retained as validation challenger
 
 Reason:
 
-This feature set produced the best validation MAE among the reduced feature sets, slightly better than the full feature set. However, it removes `total_kg`, which is a core production-volume feature.
+This feature set produced slightly better validation MAE than the full feature set, but it removes `total_kg`, which is a core production-volume feature.
 
-The validation improvement over the full feature set is small:
+The validation improvement over the full feature set was small:
 
 ```text
 full validation MAE: 1693.194496
@@ -400,7 +406,7 @@ reduced_without_total_kg validation MAE: 1659.338997
 difference: 33.855499 kWh
 ```
 
-Because the improvement is small and the feature set removes a core production driver, it is not selected as the production-safe baseline.
+Because the improvement was small and the feature set removed a core production driver, it was not selected as the production-safe baseline.
 
 ### Run 0.1.3 — Domain Reduced Feature Set With Total KG
 
@@ -463,7 +469,7 @@ Rejected
 
 Reason:
 
-This feature set is more domain-credible than the reduced set without `total_kg`, but its validation performance is weaker than the full feature baseline.
+This feature set was more domain-credible than the reduced set without `total_kg`, but its validation performance was weaker than the full feature baseline.
 
 ## Feature-set decision after Version 0.1
 
@@ -492,11 +498,13 @@ Full feature set:
 - selected as current baseline feature set
 ```
 
-The production-safe feature decision is:
+The production-safe feature decision was:
 
 ```text
 Retain the full feature set.
 ```
+
+This decision remains valid after version 0.5 because the new best model, Extra Trees, also wins using the full feature set.
 
 ## Modeling Version 0.2 — Initial CatBoost Candidate Added
 
@@ -549,8 +557,6 @@ Run name:
 ```text
 0.3 Full Feature Baseline With Tuned CatBoost Candidate
 ```
-
-The tuned CatBoost configuration improved substantially compared with the first CatBoost attempt.
 
 The tuned CatBoost candidate used:
 
@@ -704,7 +710,7 @@ Reduced feature set retained only as a challenger
 
 Reason:
 
-CatBoost performed much worse than Gradient Boosting. The reduced feature set without `total_kg` still achieved the best validation MAE overall, but it remains less production-credible because it removes a core production-volume feature.
+CatBoost performed much worse than Gradient Boosting. The reduced feature set without `total_kg` still achieved the best validation MAE among early feature-set diagnostics, but it remained less production-credible because it removed a core production-volume feature.
 
 ### Run 0.3.3 — Domain Reduced Feature Set With Total KG With Tuned CatBoost Candidate
 
@@ -928,7 +934,7 @@ This run is not selected.
 
 It is documented as an instability diagnostic because it shows that the 7-day validation window can be misleading when the feature set is too reduced or the model objective is too specialized.
 
-This result supports the decision to retain the full-feature Gradient Boosting model as the production-safe baseline.
+This result supports the decision to retain the full feature set for production-safe model selection.
 
 ## XGBoost decision summary
 
@@ -964,18 +970,174 @@ Reason:
 XGBoost was tested with a standard squared-error objective and with a Tweedie objective better suited to positive continuous targets. The Tweedie objective improved XGBoost substantially, but validation evidence still favored Gradient Boosting.
 ```
 
-## Final current model decision
+## Modeling Version 0.5 — Small-Data Candidate Comparison
 
-The selected production-safe model remains:
+Version 0.5 added small-data model candidates.
+
+Run name:
 
 ```text
-Full feature set + Gradient Boosting
+0.5 Small-Data Candidate Comparison
+```
+
+The purpose was to test models that may be more appropriate for a very small post-installation training set.
+
+The post-installation training window contains only 30 rows. Linear Regression had already performed close to Gradient Boosting, so it was reasonable to test robust linear models, regularized small-data models, scaled kernel models, and an additional tree ensemble.
+
+The added candidates were:
+
+```text
+huber_regression
+bayesian_ridge
+elastic_net
+svr_rbf_scaled
+extra_trees
+```
+
+These models were added as candidates only. They did not remove or replace the existing models.
+
+### Validation comparison
+
+Feature set:
+
+```text
+full
+```
+
+Validation results:
+
+```text
+extra_trees validation MAE:          735.753100
+huber_regression validation MAE:    1133.212490
+gradient_boosting validation MAE:   1693.194496
+linear_regression validation MAE:   1736.242085
+bayesian_ridge validation MAE:      1880.090113
+elastic_net validation MAE:         1902.828005
+xgboost_regularized validation MAE: 2344.517857
+ridge_regression validation MAE:    2375.219943
+random_forest validation MAE:       2866.054458
+catboost_regularized validation MAE: 3109.107828
+dummy_mean validation MAE:         30150.766667
+svr_rbf_scaled validation MAE:     46103.155101
+```
+
+The best validation model was:
+
+```text
+extra_trees
+```
+
+Extra Trees validation metrics:
+
+```text
+validation MAE: 735.753100
+validation RMSE: 940.317618
+validation R²: 0.842905
+validation MAPE: 4.042565%
+validation total deviation: -1.805594%
+```
+
+### Test results
+
+The selected Extra Trees model was evaluated on the final post-installation holdout test period.
+
+```text
+test MAE: 1492.3472
+test RMSE: 1964.4620
+test R²: 0.4246
+test MAPE: 9.4615%
+test total deviation: 4.3923%
+```
+
+Bootstrap 95% confidence intervals:
+
+```text
+test MAE CI: [609.4218, 2522.3190]
+test RMSE CI: [693.5024, 2819.6042]
+test MAPE CI: [3.1379, 16.7242]
+test total deviation CI: [-2.4009, 14.1029]
+```
+
+### Version 0.5 decision
+
+Extra Trees is selected as the new current production-safe post-installation model.
+
+Decision:
+
+```text
+Select full-feature Extra Trees as the current best post-installation forecasting model.
+```
+
+Reason:
+
+Extra Trees improved both validation and test performance compared with the previous Gradient Boosting baseline.
+
+Validation comparison:
+
+```text
+Gradient Boosting validation MAE: 1693.194496
+Extra Trees validation MAE:        735.753100
+```
+
+Test comparison:
+
+```text
+Gradient Boosting test MAE: 1641.4317
+Extra Trees test MAE:       1492.3472
+```
+
+Validation total deviation also improved:
+
+```text
+Gradient Boosting validation total deviation: 8.622433%
+Extra Trees validation total deviation:       -1.805594%
+```
+
+The final holdout test total deviation remained very close:
+
+```text
+Gradient Boosting test total deviation: 4.4430%
+Extra Trees test total deviation:       4.3923%
+```
+
+This makes Extra Trees the strongest current model in the real post-installation benchmark.
+
+### Diagnostic plot interpretation
+
+The Extra Trees diagnostic plots show that the model follows the main upward movement in the post-installation test week.
+
+However, the model overpredicts the first two lower-consumption test days. These two early errors create the largest negative residuals.
+
+The diagnostic interpretation is:
+
+```text
+Extra Trees captures the higher-consumption part of the test week well, but overpredicts the first two lower-consumption days.
+```
+
+This does not invalidate the model. It indicates that the model may still struggle with sudden low-consumption days or unusual operating conditions.
+
+Because the test set contains only seven observations, residual distribution plots are included as standard diagnostics but should not be overinterpreted.
+
+### Small-data model-family decision
+
+The small-data comparison was useful because it showed that the best model was not the most complex or newest model.
+
+Advanced boosting models such as CatBoost and XGBoost were tested and rejected. A conservative Extra Trees ensemble performed best on the current real post-installation dataset.
+
+This is a positive modeling outcome because the selected model is based on validation and holdout evidence, not model popularity.
+
+## Current final model decision
+
+The selected production-safe model is now:
+
+```text
+Full feature set + Extra Trees
 ```
 
 The selected model is:
 
 ```text
-gradient_boosting
+extra_trees
 ```
 
 The selected feature set is:
@@ -984,16 +1146,15 @@ The selected feature set is:
 full
 ```
 
-The full feature set is selected over the reduced feature challenger because:
+The full feature set is selected because:
 
 * it preserves `total_kg`, a core production-volume feature
 * it retains the full production and calendar signal set
-* its validation MAE is very close to the reduced challenger
-* it has stronger domain credibility
-* it has better final holdout behavior than the reduced challenger
-* it is more defensible for a production-style model
+* it has stronger domain credibility than reduced feature sets
+* the best current model, Extra Trees, wins using the full feature set
+* reduced feature diagnostics showed instability or weaker final holdout behavior
 
-The reduced feature set without `total_kg` is documented as a validation challenger, not selected as the production-safe model.
+The previous selected model, Gradient Boosting, is retained as a strong benchmark but is no longer the current selected model after version 0.5.
 
 ## MLflow tracking
 
@@ -1028,6 +1189,8 @@ The logged run families are:
 
 0.4   Full Feature Baseline With XGBoost Candidate
 0.4.1 XGBoost Tweedie Objective Candidate Comparison
+
+0.5   Small-Data Candidate Comparison
 ```
 
 The training script logs:
@@ -1108,6 +1271,55 @@ Synthetic data should not be used to claim improved real-world model accuracy.
 
 The real model-selection benchmark remains based on the real post-installation train, validation, and test periods.
 
+## Rolling-validation extension
+
+The current post-installation benchmark uses a single validation window and a single final test window.
+
+Because the post-installation period is short, a later stability check should use rolling validation.
+
+Rolling validation should respect time order.
+
+A valid rolling split looks like this:
+
+```text
+Fold 1:
+train = earlier dates
+validate = later dates
+
+Fold 2:
+train = earlier dates plus more history
+validate = later dates
+
+Fold 3:
+train = earlier dates plus more history
+validate = later dates
+```
+
+This is not leakage because every validation period occurs after its corresponding training period.
+
+The purpose of rolling validation is to answer:
+
+```text
+Did Extra Trees win only because of one favorable validation week,
+or does it remain strong across multiple time windows?
+```
+
+A future rolling-validation report should include:
+
+* mean validation MAE across folds
+* standard deviation of validation MAE
+* mean validation total deviation
+* selected model stability across folds
+* final untouched test metrics
+
+The final test week should remain untouched.
+
+Recommended future version:
+
+```text
+0.6 Rolling Validation Stability Check
+```
+
 ## Full-history forecasting extension
 
 The current benchmark is a post-installation-only model.
@@ -1184,63 +1396,24 @@ final_prediction = baseline_predicted_kWh + predicted_residual_kWh
 
 This approach bridges the M&V baseline objective and the operational forecasting objective.
 
-## Next modeling step
-
-Before tuning Gradient Boosting, the next recommended step is to test small-data alternative model families.
-
-The next version should be:
-
-```text
-0.5 Small-Data Candidate Comparison
-```
-
-Candidate models should include:
-
-```text
-huber_regression
-bayesian_ridge
-elastic_net
-svr_rbf_scaled
-extra_trees
-```
-
-Reason:
-
-Linear Regression is already close to Gradient Boosting on validation MAE:
-
-```text
-gradient_boosting validation MAE: 1693.194496
-linear_regression validation MAE: 1736.242085
-```
-
-This suggests that robust linear models and scaled kernel methods may be competitive on the small post-installation dataset.
-
-After this small-data model-family comparison, the project should move to:
-
-```text
-0.6 Tuned Gradient Boosting Final Candidate
-```
-
-The goal is to strengthen the final production-safe model decision before moving into the full-history forecasting extension.
-
 ## Current final conclusion
 
 The current project conclusion is:
 
 ```text
-The full-feature Gradient Boosting model is the selected production-safe baseline for the real post-installation forecasting task.
+The full-feature Extra Trees model is the selected production-safe model for the real post-installation forecasting task.
 ```
 
 CatBoost conclusion:
 
 ```text
-CatBoost was evaluated and tuned but rejected because validation performance was consistently weaker than Gradient Boosting across all tested feature sets.
+CatBoost was evaluated and tuned but rejected because validation performance was consistently weaker than the selected models across all tested feature sets.
 ```
 
 XGBoost conclusion:
 
 ```text
-XGBoost improved substantially after switching from squared-error to Tweedie objective, but it still underperformed the selected full-feature Gradient Boosting baseline.
+XGBoost improved substantially after switching from squared-error to Tweedie objective, but it still underperformed the selected full-feature tree-ensemble benchmarks.
 ```
 
 Feature-set conclusion:
@@ -1249,10 +1422,16 @@ Feature-set conclusion:
 The full feature set is retained for production-safe modeling because it preserves key production-volume information and provides the strongest domain-credible balance.
 ```
 
-The next experimental step is:
+Small-data comparison conclusion:
 
 ```text
-0.5 Small-Data Candidate Comparison
+Extra Trees became the new selected model after outperforming Gradient Boosting on both validation MAE and final holdout test MAE.
+```
+
+The next recommended experimental step is:
+
+```text
+0.6 Rolling Validation Stability Check
 ```
 
 A later portfolio extension may include:
