@@ -35,10 +35,7 @@ def build_ridge_regression_model(alpha: float = 1.0) -> Ridge:
 
 
 def build_random_forest_model(
-    n_estimators: int = 300,
-    max_depth: int | None = 4,
-    min_samples_leaf: int = 2,
-    random_state: int = 33,
+    
 ) -> RandomForestRegressor:
     """
     Build a controlled Random Forest model.
@@ -47,20 +44,16 @@ def build_random_forest_model(
     dataset is small.
     """
     return RandomForestRegressor(
-        n_estimators=n_estimators,
-        max_depth=max_depth,
-        min_samples_leaf=min_samples_leaf,
-        random_state=random_state,
+        n_estimators=300,
+        max_depth=4,
+        min_samples_leaf=2,
+        random_state=33,
         n_jobs=-1,
     )
 
 
 def build_gradient_boosting_model(
-    n_estimators: int = 100,
-    learning_rate: float = 0.05,
-    max_depth: int = 2,
-    min_samples_leaf: int = 3,
-    random_state: int = 33,
+    
 ) -> GradientBoostingRegressor:
     """
     Build a conservative Gradient Boosting model.
@@ -69,21 +62,15 @@ def build_gradient_boosting_model(
     overfitting risk on the small post-installation dataset.
     """
     return GradientBoostingRegressor(
-        n_estimators=n_estimators,
-        learning_rate=learning_rate,
-        max_depth=max_depth,
-        min_samples_leaf=min_samples_leaf,
-        random_state=random_state,
+        n_estimators=100,
+        learning_rate=0.05,
+        max_depth=2,
+        min_samples_leaf=3,
+        random_state=33,
     )
 
 
-def build_catboost_model(
-    iterations: int = 200,
-    learning_rate: float = 0.03,
-    depth: int = 3,
-    l2_leaf_reg: float = 10.0,
-    random_seed: int = 33,
-):
+def build_catboost_model():
     """
     Build a regularized CatBoost regression model.
 
@@ -97,14 +84,10 @@ def build_catboost_model(
 
     return CatBoostRegressor(
         loss_function="RMSE",
-        iterations=iterations,
-        learning_rate=learning_rate,
-        depth=depth,
-        l2_leaf_reg=l2_leaf_reg,
-        random_strength=2,
-        bootstrap_type="Bernoulli",
-        subsample=0.8,
-        random_seed=random_seed,
+        iterations=100,
+        learning_rate= 0.05,
+        depth=2,
+        random_seed=33,
         allow_writing_files=False,
         verbose=False,
     )
