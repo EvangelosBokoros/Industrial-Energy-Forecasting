@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "api_version": "v1",
+  "artifact_path": "models/ensemble_2_0_model.joblib",
+  "modeling_version": "2.0",
+  "run_name": "2.0 Post-Only and Full-History Ensemble Diagnostic",
+  "ensemble_type": "constrained_weighted_prediction_average",
+  "target_column": "active_energy_kWh",
+  "components": {
+    "post_only": {
+      "estimator_class": "ExtraTreesRegressor",
+      "weight": 0.7,
+      "features": [
+        "total_kg",
+        "total_nominal_kg",
+        "total_brix_units",
+        "total_hours",
+        "total_pallets",
+        "orders",
+        "avg_brix",
+        "yield_ratio_actual_over_nominal",
+        "weekday",
+        "is_weekend",
+        "month",
+        "year",
+        "week_of_year"
+      ]
+    },
+    "full_history": {
+      "estimator_class": "AdaBoostRegressor",
+      "weight": 0.30000000000000004,
+      "features": [
+        "total_kg",
+        "total_hours",
+        "total_pallets",
+        "orders",
+        "avg_brix",
+        "yield_ratio_actual_over_nominal",
+        "weekday",
+        "is_weekend",
+        "month",
+        "year"
+      ]
+    }
+  }
+}
