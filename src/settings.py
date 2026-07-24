@@ -2,6 +2,8 @@ DATE_COL = "Ημ/νία"
 
 TARGET_COL = "active_energy_kWh"
 
+INTERVENTION_DATE = "2025-09-12"
+
 FEATURE_COLUMNS = [
     "total_kg",
     "total_nominal_kg",
