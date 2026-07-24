@@ -24,10 +24,11 @@ from src.serving.prediction_service import (
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """
-    Load and validate the model once when the API starts.
+    Load and validate the model and serving references once.
 
-    The same loaded model is reused for every prediction request.
+    The same loaded prediction service is reused for every request.
     """
+
     app.state.prediction_service = PredictionService()
 
     yield
@@ -54,7 +55,9 @@ def _build_prediction_response(
 
     return PredictionResponse(
         date=payload.date,
-        modeling_version=str(metadata["modeling_version"]),
+        modeling_version=str(
+            metadata["modeling_version"]
+        ),
         target=str(metadata["target_column"]),
         prediction_kwh=result.prediction_kwh,
         post_only_prediction_kwh=(
@@ -71,6 +74,24 @@ def _build_prediction_response(
         ),
         branch_disagreement_status=(
             result.branch_disagreement_status
+        ),
+        operational_range_status=(
+            result.operational_range_status
+        ),
+        calendar_coverage_status=(
+            result.calendar_coverage_status
+        ),
+        tail_features=list(
+            result.tail_features
+        ),
+        outside_range_features=list(
+            result.outside_range_features
+        ),
+        unseen_calendar_features=list(
+            result.unseen_calendar_features
+        ),
+        warning_codes=list(
+            result.warning_codes
         ),
     )
 
@@ -113,8 +134,10 @@ def readiness(request: Request) -> ReadinessResponse:
 
     return ReadinessResponse(
         status="ready",
-        modeling_version=metadata["modeling_version"],
-        target=metadata["target_column"],
+        modeling_version=str(
+            metadata["modeling_version"]
+        ),
+        target=str(metadata["target_column"]),
     )
 
 
@@ -134,8 +157,13 @@ def model_information(
 
     components = {
         component_name: ModelComponentResponse(
-            estimator_class=component["estimator_class"],
-            weight=round(float(component["weight"]), 12),
+            estimator_class=str(
+                component["estimator_class"]
+            ),
+            weight=round(
+                float(component["weight"]),
+                12,
+            ),
             features=list(component["features"]),
         )
         for component_name, component in metadata[
@@ -144,9 +172,13 @@ def model_information(
     }
 
     return ModelInfoResponse(
-        modeling_version=metadata["modeling_version"],
-        ensemble_type=metadata["ensemble_type"],
-        target=metadata["target_column"],
+        modeling_version=str(
+            metadata["modeling_version"]
+        ),
+        ensemble_type=str(
+            metadata["ensemble_type"]
+        ),
+        target=str(metadata["target_column"]),
         components=components,
     )
 

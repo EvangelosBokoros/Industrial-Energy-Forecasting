@@ -6,6 +6,26 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+OperationalRangeStatus = Literal[
+    "inside_typical_development_range",
+    "development_distribution_tail",
+    "outside_observed_range",
+]
+
+CalendarCoverageStatus = Literal[
+    "represented",
+    "contains_unseen_calendar_values",
+]
+
+WarningCode = Literal[
+    "DEVELOPMENT_DISTRIBUTION_TAIL",
+    "OUTSIDE_OBSERVED_RANGE",
+    "UNSEEN_CALENDAR_VALUE",
+    "MODERATE_BRANCH_DISAGREEMENT",
+    "HIGH_BRANCH_DISAGREEMENT",
+]
+
+
 class PredictionRequest(BaseModel):
     """Raw operational inputs accepted by the prediction API."""
 
@@ -26,7 +46,9 @@ class PredictionRequest(BaseModel):
 
 
 class PredictionResponse(BaseModel):
-    """Forecast and model-disagreement information returned by the API."""
+    """
+    Forecast, model disagreement, and development-support diagnostics.
+    """
 
     model_config = ConfigDict(
         extra="forbid",
@@ -49,6 +71,15 @@ class PredictionResponse(BaseModel):
         "high",
         "undefined",
     ]
+
+    operational_range_status: OperationalRangeStatus
+    calendar_coverage_status: CalendarCoverageStatus
+
+    tail_features: list[str]
+    outside_range_features: list[str]
+    unseen_calendar_features: list[str]
+
+    warning_codes: list[WarningCode]
 
 
 class RootResponse(BaseModel):
@@ -94,12 +125,13 @@ class ModelInfoResponse(BaseModel):
     target: str
     components: dict[str, ModelComponentResponse]
 
+
 class BatchPredictionRequest(BaseModel):
-     """Collection of daily records submitted for batch prediction."""
+    """Collection of daily records submitted for batch prediction."""
 
-     model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid")
 
-     records: list[PredictionRequest] = Field(
+    records: list[PredictionRequest] = Field(
         min_length=1,
         max_length=500,
     )

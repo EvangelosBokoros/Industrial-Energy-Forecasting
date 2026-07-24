@@ -46,9 +46,15 @@ def test_prediction_endpoint_returns_valid_response(client):
     assert body["target"] == "active_energy_kWh"
 
     assert math.isfinite(body["prediction_kwh"])
-    assert math.isfinite(body["post_only_prediction_kwh"])
-    assert math.isfinite(body["full_history_prediction_kwh"])
-    assert math.isfinite(body["branch_disagreement_kwh"])
+    assert math.isfinite(
+        body["post_only_prediction_kwh"]
+    )
+    assert math.isfinite(
+        body["full_history_prediction_kwh"]
+    )
+    assert math.isfinite(
+        body["branch_disagreement_kwh"]
+    )
 
     expected_ensemble = (
         0.7 * body["post_only_prediction_kwh"]
@@ -65,6 +71,84 @@ def test_prediction_endpoint_returns_valid_response(client):
         "high",
         "undefined",
     }
+
+    assert (
+        body["operational_range_status"]
+        == "inside_typical_development_range"
+    )
+
+    # The development reference contains ISO weeks 37–43.
+    # October 31, 2025 belongs to ISO week 44.
+    assert (
+        body["calendar_coverage_status"]
+        == "contains_unseen_calendar_values"
+    )
+
+    assert body["tail_features"] == []
+    assert body["outside_range_features"] == []
+
+    assert body["unseen_calendar_features"] == [
+        "week_of_year=44"
+    ]
+
+    assert (
+        "UNSEEN_CALENDAR_VALUE"
+        in body["warning_codes"]
+    )
+
+
+def test_prediction_returns_outside_range_diagnostics(
+    client,
+):
+    payload = VALID_PAYLOAD.copy()
+
+    # Pallets was constant at zero during development.
+    payload["total_pallets"] = 1
+
+    # January 2026 introduces an unseen month, year, and ISO week.
+    payload["date"] = "2026-01-05"
+
+    response = client.post(
+        "/v1/predict",
+        json=payload,
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert (
+        body["operational_range_status"]
+        == "outside_observed_range"
+    )
+
+    assert body["outside_range_features"] == [
+        "total_pallets"
+    ]
+
+    assert (
+        body["calendar_coverage_status"]
+        == "contains_unseen_calendar_values"
+    )
+
+    assert body["unseen_calendar_features"] == [
+        "month=1",
+        "week_of_year=2",
+        "year=2026",
+    ]
+
+    assert (
+        "OUTSIDE_OBSERVED_RANGE"
+        in body["warning_codes"]
+    )
+
+    assert (
+        "UNSEEN_CALENDAR_VALUE"
+        in body["warning_codes"]
+    )
+
+    # Diagnostics warn about support but do not block prediction.
+    assert math.isfinite(body["prediction_kwh"])
 
 
 def test_prediction_rejects_missing_required_field(client):
@@ -226,7 +310,41 @@ def test_batch_prediction_returns_ordered_results(client):
     for prediction in body["predictions"]:
         assert prediction["modeling_version"] == "2.0"
         assert prediction["target"] == "active_energy_kWh"
-        assert math.isfinite(prediction["prediction_kwh"])
+        assert math.isfinite(
+            prediction["prediction_kwh"]
+        )
+
+        assert prediction[
+            "operational_range_status"
+        ] in {
+            "inside_typical_development_range",
+            "development_distribution_tail",
+            "outside_observed_range",
+        }
+
+        assert prediction[
+            "calendar_coverage_status"
+        ] in {
+            "represented",
+            "contains_unseen_calendar_values",
+        }
+
+        assert isinstance(
+            prediction["tail_features"],
+            list,
+        )
+        assert isinstance(
+            prediction["outside_range_features"],
+            list,
+        )
+        assert isinstance(
+            prediction["unseen_calendar_features"],
+            list,
+        )
+        assert isinstance(
+            prediction["warning_codes"],
+            list,
+        )
 
 
 def test_batch_prediction_rejects_empty_records(client):
@@ -238,7 +356,9 @@ def test_batch_prediction_rejects_empty_records(client):
     assert response.status_code == 422
 
 
-def test_batch_prediction_rejects_invalid_nested_record(client):
+def test_batch_prediction_rejects_invalid_nested_record(
+    client,
+):
     valid_record = VALID_PAYLOAD.copy()
 
     invalid_record = VALID_PAYLOAD.copy()
@@ -257,7 +377,9 @@ def test_batch_prediction_rejects_invalid_nested_record(client):
     assert response.status_code == 422
 
 
-def test_batch_prediction_rejects_more_than_500_records(client):
+def test_batch_prediction_rejects_more_than_500_records(
+    client,
+):
     records = [
         VALID_PAYLOAD.copy()
         for _ in range(501)
