@@ -34,6 +34,7 @@ reports/figures/*
 # MLflow
 mlruns/
 mlartifacts/
+catboost_info/
 *.db
 *.sqlite
 *.sqlite3
