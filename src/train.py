@@ -52,13 +52,13 @@ SELECTED_MODEL_PATH = MODELS_DIR / "post_only_model.joblib"
 
 MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
 MLFLOW_EXPERIMENT_NAME = "Damavand Energy Forecasting"
-MODELING_VERSION = "0.3"
+MODELING_VERSION = "0.5"
 
 RUN_NAMES = {
-    "full": "0.4.1 XGBoost Tweedie Objective Candidate Comparison",
-    "vif_auto_post_only": "0.4.1 VIF Auto Feature Set With XGBoost Candidate",
-    "reduced_without_total_kg": "0.4.2 Reduced Feature Set Without Total KG With XGBoost Candidate",
-    "domain_reduced_with_total_kg": "0.4.3 Domain Reduced Feature Set With Total KG With XGBoost Candidate",
+    "full": "0.5 Small-Data Candidate Comparison",
+    "vif_auto_post_only": "0.5.1 VIF Auto Feature Set With Small-Data Candidate",
+    "reduced_without_total_kg": "0.5.2 Reduced Feature Set Without Total KG With Small-Data Candidate",
+    "domain_reduced_with_total_kg": "0.5.3 Domain Reduced Feature Set With Total KG Small-Data Candidate",
 }
 
 
@@ -351,7 +351,7 @@ def log_run_to_mlflow(
         mlflow.set_tag("raw_data_logged", "False")
         mlflow.set_tag(
             "training_info",
-            "Version 0.4 post-only forecasting experiment with named feature sets.",
+            "0.5 Small-Data Candidate Comparison.",
         )
 
         metric_names = [
