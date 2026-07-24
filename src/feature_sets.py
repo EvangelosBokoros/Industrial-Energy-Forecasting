@@ -30,6 +30,18 @@ FEATURE_SETS = {
         "is_weekend",
         "week_of_year",
     ],
+    "vif_auto_full_history": [
+        "total_kg",
+        "total_hours",
+        "total_pallets",
+        "orders",
+        "avg_brix",
+        "yield_ratio_actual_over_nominal",
+        "weekday",
+        "is_weekend",
+        "month",
+        "year",
+    ],
 }
 
 

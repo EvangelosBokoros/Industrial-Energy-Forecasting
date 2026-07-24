@@ -11,6 +11,7 @@ from src.evaluate import (
     calculate_bootstrap_metric_intervals,
     calculate_regression_metrics,
 )
+from src.feature_sets import get_feature_columns
 from src.model_full_history import get_full_history_model_builders
 from src.plots import (
     calculate_residuals,
@@ -23,7 +24,6 @@ from src.plots import (
 from src.preprocessing import clean_energy_dataset, validate_required_columns
 from src.settings import (
     DATE_COL,
-    FEATURE_COLUMNS,
     FULL_HISTORY_TEST_START,
     FULL_HISTORY_TRAIN_END,
     FULL_HISTORY_VALIDATION_END,
@@ -35,18 +35,44 @@ from src.settings import (
 DATA_PATH = Path("data/processed/damavand.csv")
 
 REPORTS_DIR = Path("reports")
-FIGURES_DIR = REPORTS_DIR / "figures" / "full_history"
+FIGURES_BASE_DIR = REPORTS_DIR / "figures"
 METADATA_DIR = REPORTS_DIR / "metadata"
 MODELS_DIR = Path("models")
 
 FULL_HISTORY_REPORT_PATH = REPORTS_DIR / "full_history_training_report.xlsx"
-FEATURE_LIST_PATH = METADATA_DIR / "full_history_features.txt"
-SELECTED_MODEL_PATH = MODELS_DIR / "full_history_model.joblib"
+FULL_HISTORY_FEATURE_LIST_PATH = METADATA_DIR / "full_history_features.txt"
+FULL_HISTORY_SELECTED_MODEL_PATH = MODELS_DIR / "full_history_model.joblib"
+FULL_HISTORY_FIGURES_DIR = FIGURES_BASE_DIR / "full_history"
+
+FULL_HISTORY_VIF_REPORT_PATH = REPORTS_DIR / "full_history_vif_training_report.xlsx"
+FULL_HISTORY_VIF_FEATURE_LIST_PATH = METADATA_DIR / "full_history_vif_features.txt"
+FULL_HISTORY_VIF_SELECTED_MODEL_PATH = MODELS_DIR / "full_history_vif_model.joblib"
+FULL_HISTORY_VIF_FIGURES_DIR = FIGURES_BASE_DIR / "full_history_vif"
 
 MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
 MLFLOW_EXPERIMENT_NAME = "Damavand Energy Forecasting"
-MODELING_VERSION = "1.1"
-RUN_NAME = "1.1 Full-History Optuna Tuned Candidate Comparison"
+
+RUN_CONFIGS = {
+    "full": {
+        "modeling_version": "1.1",
+        "run_name": "1.1 Full-History Optuna Tuned Candidate Comparison",
+        "run_type": "full_history_optuna_tuned_candidate",
+        "training_info": (
+            "1.1 Full-History Optuna Tuned Candidate Comparison. "
+            "Hyperparameters selected using the Optuna tuning script."
+        ),
+    },
+    "vif_auto_full_history": {
+        "modeling_version": "1.2",
+        "run_name": "1.2 Full-History VIF-Reduced Feature Diagnostic",
+        "run_type": "full_history_vif_feature_diagnostic",
+        "training_info": (
+            "1.2 Full-History VIF-Reduced Feature Diagnostic. "
+            "Uses the Optuna-tuned full-history model candidates with the "
+            "VIF-reduced full-history feature set."
+        ),
+    },
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -58,12 +84,65 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--feature-set",
+        default="full",
+        choices=sorted(RUN_CONFIGS.keys()),
+        help=(
+            "Named full-history feature set to use for training. "
+            "Defaults to 'full'."
+        ),
+    )
+
+    parser.add_argument(
         "--log-mlflow",
         action="store_true",
         help="Log this run to MLflow.",
     )
 
     return parser.parse_args()
+
+
+def build_run_config(feature_set_name: str) -> dict[str, str]:
+    """
+    Return the run configuration for a full-history feature set.
+    """
+    if feature_set_name not in RUN_CONFIGS:
+        available_feature_sets = ", ".join(sorted(RUN_CONFIGS.keys()))
+        raise ValueError(
+            f"Unknown full-history feature set: {feature_set_name}. "
+            f"Available full-history feature sets: {available_feature_sets}"
+        )
+
+    return RUN_CONFIGS[feature_set_name]
+
+
+def build_output_paths(
+    feature_set_name: str,
+) -> tuple[Path, Path, Path, Path]:
+    """
+    Build output paths for reports, feature metadata, model artifact, and figures.
+
+    The default full-feature run keeps the original full-history output paths.
+    The VIF-reduced run gets separate paths to avoid overwriting the official
+    full-feature tuned run.
+    """
+    if feature_set_name == "full":
+        return (
+            FULL_HISTORY_REPORT_PATH,
+            FULL_HISTORY_FEATURE_LIST_PATH,
+            FULL_HISTORY_SELECTED_MODEL_PATH,
+            FULL_HISTORY_FIGURES_DIR,
+        )
+
+    if feature_set_name == "vif_auto_full_history":
+        return (
+            FULL_HISTORY_VIF_REPORT_PATH,
+            FULL_HISTORY_VIF_FEATURE_LIST_PATH,
+            FULL_HISTORY_VIF_SELECTED_MODEL_PATH,
+            FULL_HISTORY_VIF_FIGURES_DIR,
+        )
+
+    raise ValueError(f"Unknown feature set for output paths: {feature_set_name}")
 
 
 def create_full_history_split_masks(
@@ -186,19 +265,22 @@ def build_bootstrap_intervals_table(
 
 
 def build_run_summary_table(
+    run_config: dict[str, str],
+    feature_set_name: str,
+    selected_feature_columns: list[str],
     split_sizes: dict[str, int],
 ) -> pd.DataFrame:
     """
     Build a compact run summary table for the Excel report.
     """
     summary = {
-        "modeling_version": MODELING_VERSION,
+        "modeling_version": run_config["modeling_version"],
         "training_scope": "full_history",
         "tuning_method": "optuna",
         "hyperparameter_source": "src/train_full_history_optuna.py",
-        "feature_set_name": "full",
-        "feature_count": len(FEATURE_COLUMNS),
-        "selected_features": ", ".join(FEATURE_COLUMNS),
+        "feature_set_name": feature_set_name,
+        "feature_count": len(selected_feature_columns),
+        "selected_features": ", ".join(selected_feature_columns),
         "full_history_train_end": FULL_HISTORY_TRAIN_END,
         "full_history_validation_start": FULL_HISTORY_VALIDATION_START,
         "full_history_validation_end": FULL_HISTORY_VALIDATION_END,
@@ -289,6 +371,13 @@ def log_run_to_mlflow(
     validation_metrics_df: pd.DataFrame,
     test_metrics_record: dict[str, float],
     split_sizes: dict[str, int],
+    run_config: dict[str, str],
+    feature_set_name: str,
+    selected_feature_columns: list[str],
+    report_path: Path,
+    feature_list_path: Path,
+    selected_model_path: Path,
+    figures_dir: Path,
 ) -> None:
     """
     Log selected run information to MLflow.
@@ -307,16 +396,17 @@ def log_run_to_mlflow(
 
     mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
 
-    with mlflow.start_run(run_name=RUN_NAME) as run:
-        mlflow.log_param("modeling_version", MODELING_VERSION)
+    with mlflow.start_run(run_name=run_config["run_name"]) as run:
+        mlflow.log_param("modeling_version", run_config["modeling_version"])
         mlflow.log_param("training_scope", "full_history")
         mlflow.log_param("tuning_method", "optuna")
         mlflow.log_param("hyperparameter_source", "src/train_full_history_optuna.py")
+        mlflow.log_param("feature_set_name", feature_set_name)
         mlflow.log_param("model_type", type(model).__name__)
         mlflow.log_param("selected_model_name", selected_model_name)
         mlflow.log_param("date_column", DATE_COL)
         mlflow.log_param("target_column", TARGET_COL)
-        mlflow.log_param("feature_count", len(FEATURE_COLUMNS))
+        mlflow.log_param("feature_count", len(selected_feature_columns))
         mlflow.log_param("candidate_models", ",".join(model_builders.keys()))
 
         mlflow.log_param("full_history_train_end", FULL_HISTORY_TRAIN_END)
@@ -338,15 +428,12 @@ def log_run_to_mlflow(
 
         mlflow.set_tag("project", "damavand_energy_forecasting")
         mlflow.set_tag("objective", "full_history_forecasting")
-        mlflow.set_tag("run_type", "full_history_optuna_tuned_candidate")
+        mlflow.set_tag("run_type", run_config["run_type"])
         mlflow.set_tag("selection_stage", "validation")
-        mlflow.set_tag("features", ", ".join(FEATURE_COLUMNS))
+        mlflow.set_tag("features", ", ".join(selected_feature_columns))
         mlflow.set_tag("raw_data_logged", "False")
         mlflow.set_tag("hyperparameter_source", "src/train_full_history_optuna.py")
-        mlflow.set_tag(
-            "training_info",
-            "1.1 Full-History Optuna Tuned Candidate Comparison. Hyperparameters selected using the Optuna tuning script.",
-        )
+        mlflow.set_tag("training_info", run_config["training_info"])
 
         metric_names = [
             "mae",
@@ -375,22 +462,22 @@ def log_run_to_mlflow(
                 )
 
         log_artifact_if_exists(
-            FULL_HISTORY_REPORT_PATH,
+            report_path,
             mlflow_artifact_path="reports",
         )
 
         log_artifact_if_exists(
-            SELECTED_MODEL_PATH,
+            selected_model_path,
             mlflow_artifact_path="models",
         )
 
         log_artifact_if_exists(
-            FEATURE_LIST_PATH,
+            feature_list_path,
             mlflow_artifact_path="metadata",
         )
 
-        if FIGURES_DIR.exists():
-            for figure_path in sorted(FIGURES_DIR.glob("*.png")):
+        if figures_dir.exists():
+            for figure_path in sorted(figures_dir.glob("*.png")):
                 mlflow.log_artifact(
                     str(figure_path),
                     artifact_path="figures",
@@ -398,22 +485,35 @@ def log_run_to_mlflow(
 
         print("\nMLflow run logged.")
         print(f"Experiment: {MLFLOW_EXPERIMENT_NAME}")
-        print(f"Run name: {RUN_NAME}")
+        print(f"Run name: {run_config['run_name']}")
         print(f"Run ID: {run.info.run_id}")
         print(f"Artifact URI: {mlflow.get_artifact_uri()}")
 
 
-def main(log_mlflow: bool = False) -> None:
+def main(
+    log_mlflow: bool = False,
+    feature_set_name: str = "full",
+) -> None:
     """
     Run a full-history forecasting experiment.
     """
+    run_config = build_run_config(feature_set_name)
+    selected_feature_columns = get_feature_columns(feature_set_name)
+
+    (
+        report_path,
+        feature_list_path,
+        selected_model_path,
+        figures_dir,
+    ) = build_output_paths(feature_set_name)
+
     print("\nTraining scope: full_history")
-    print("Feature set: full")
-    print(f"Feature count: {len(FEATURE_COLUMNS)}")
+    print(f"Feature set: {feature_set_name}")
+    print(f"Feature count: {len(selected_feature_columns)}")
 
     raw_df = load_tabular_data(DATA_PATH)
 
-    required_columns = [DATE_COL, TARGET_COL] + FEATURE_COLUMNS
+    required_columns = [DATE_COL, TARGET_COL] + selected_feature_columns
     validate_required_columns(raw_df, required_columns)
 
     clean_df = clean_energy_dataset(
@@ -423,10 +523,10 @@ def main(log_mlflow: bool = False) -> None:
     )
 
     model_df = clean_df.dropna(
-        subset=FEATURE_COLUMNS + [TARGET_COL],
+        subset=selected_feature_columns + [TARGET_COL],
     ).reset_index(drop=True)
 
-    X = model_df[FEATURE_COLUMNS].copy()
+    X = model_df[selected_feature_columns].copy()
     y = model_df[TARGET_COL].copy()
 
     train_mask, validation_mask, test_mask = create_full_history_split_masks(model_df)
@@ -511,7 +611,7 @@ def main(log_mlflow: bool = False) -> None:
     test_metrics_record = {
         "training_scope": "full_history",
         "tuning_method": "optuna",
-        "feature_set_name": "full",
+        "feature_set_name": feature_set_name,
         "selected_model": selected_model_name,
         **test_metrics,
         **flatten_bootstrap_intervals(bootstrap_intervals),
@@ -532,16 +632,21 @@ def main(log_mlflow: bool = False) -> None:
 
     bootstrap_intervals_df = build_bootstrap_intervals_table(bootstrap_intervals)
 
-    run_summary_df = build_run_summary_table(split_sizes=split_sizes)
+    run_summary_df = build_run_summary_table(
+        run_config=run_config,
+        feature_set_name=feature_set_name,
+        selected_feature_columns=selected_feature_columns,
+        split_sizes=split_sizes,
+    )
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    figures_dir.mkdir(parents=True, exist_ok=True)
     METADATA_DIR.mkdir(parents=True, exist_ok=True)
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
-    save_feature_list(FEATURE_COLUMNS, FEATURE_LIST_PATH)
+    save_feature_list(selected_feature_columns, feature_list_path)
 
-    with pd.ExcelWriter(FULL_HISTORY_REPORT_PATH, engine="openpyxl") as writer:
+    with pd.ExcelWriter(report_path, engine="openpyxl") as writer:
         run_summary_df.to_excel(
             writer,
             sheet_name="Run Summary",
@@ -572,7 +677,7 @@ def main(log_mlflow: bool = False) -> None:
             index=False,
         )
 
-    joblib.dump(selected_model, SELECTED_MODEL_PATH)
+    joblib.dump(selected_model, selected_model_path)
 
     test_dates = model_df.loc[test_mask, DATE_COL]
 
@@ -580,7 +685,7 @@ def main(log_mlflow: bool = False) -> None:
         dates=test_dates,
         y_true=y_test,
         y_pred=test_predictions,
-        output_path=FIGURES_DIR / "full_history_actual_vs_predicted.png",
+        output_path=figures_dir / "full_history_actual_vs_predicted.png",
         title="Full-History Test: Actual vs Predicted",
     )
 
@@ -588,36 +693,36 @@ def main(log_mlflow: bool = False) -> None:
         dates=test_dates,
         y_true=y_test,
         y_pred=test_predictions,
-        output_path=FIGURES_DIR / "full_history_residuals_over_time.png",
+        output_path=figures_dir / "full_history_residuals_over_time.png",
         title="Full-History Test: Residuals Over Time",
     )
 
     plot_residuals_vs_predicted(
         y_true=y_test,
         y_pred=test_predictions,
-        output_path=FIGURES_DIR / "full_history_residuals_vs_predicted.png",
+        output_path=figures_dir / "full_history_residuals_vs_predicted.png",
         title="Full-History Test: Residuals vs Predicted",
     )
 
     plot_actual_vs_predicted_scatter(
         y_true=y_test,
         y_pred=test_predictions,
-        output_path=FIGURES_DIR / "full_history_actual_vs_predicted_scatter.png",
+        output_path=figures_dir / "full_history_actual_vs_predicted_scatter.png",
         title="Full-History Test: Actual vs Predicted Scatter",
     )
 
     plot_residual_distribution(
         y_true=y_test,
         y_pred=test_predictions,
-        output_path=FIGURES_DIR / "full_history_residual_distribution.png",
+        output_path=figures_dir / "full_history_residual_distribution.png",
         title="Full-History Test: Residual Distribution",
     )
 
     print("\nSaved outputs:")
-    print(f"- {FULL_HISTORY_REPORT_PATH}")
-    print(f"- {SELECTED_MODEL_PATH}")
-    print(f"- {FEATURE_LIST_PATH}")
-    print(f"- {FIGURES_DIR}")
+    print(f"- {report_path}")
+    print(f"- {selected_model_path}")
+    print(f"- {feature_list_path}")
+    print(f"- {figures_dir}")
 
     if log_mlflow:
         log_run_to_mlflow(
@@ -627,6 +732,13 @@ def main(log_mlflow: bool = False) -> None:
             validation_metrics_df=validation_metrics_df,
             test_metrics_record=test_metrics_record,
             split_sizes=split_sizes,
+            run_config=run_config,
+            feature_set_name=feature_set_name,
+            selected_feature_columns=selected_feature_columns,
+            report_path=report_path,
+            feature_list_path=feature_list_path,
+            selected_model_path=selected_model_path,
+            figures_dir=figures_dir,
         )
     else:
         print("\nMLflow logging skipped.")
@@ -635,4 +747,7 @@ def main(log_mlflow: bool = False) -> None:
 
 if __name__ == "__main__":
     args = parse_args()
-    main(log_mlflow=args.log_mlflow)
+    main(
+        log_mlflow=args.log_mlflow,
+        feature_set_name=args.feature_set,
+    )

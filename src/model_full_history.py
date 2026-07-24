@@ -23,34 +23,34 @@ def build_ridge_regression_model(alpha: float = 1.0) -> Ridge:
 
 def build_random_forest_model() -> RandomForestRegressor:
     return RandomForestRegressor(
-        n_estimators=700,
-        max_depth=5,
-        min_samples_leaf=2,
-        max_features=0.8,
-        random_state=33,
-        n_jobs=-1,
+    n_estimators=900,
+    max_depth=4,
+    min_samples_leaf=2,
+    max_features=0.5,
+    random_state=33,
+    n_jobs=-1,
     )
 
 
 def build_extra_trees_model() -> ExtraTreesRegressor:
     return ExtraTreesRegressor(
-        n_estimators=500,
-        max_depth=6,
-        min_samples_leaf=2,
-        max_features=0.7,
-        random_state=33,
-        n_jobs=-1,
+    n_estimators=300,
+    max_depth=10,
+    min_samples_leaf=2,
+    max_features=0.9,
+    random_state=33,
+    n_jobs=-1,
     )
 
 
 def build_gradient_boosting_model() -> GradientBoostingRegressor:
     return GradientBoostingRegressor(
-        n_estimators=250,
-        learning_rate=0.1,
-        max_depth=4,
-        min_samples_leaf=4,
-        subsample=0.9,
-        random_state=33,
+    n_estimators=250,
+    learning_rate=0.1,
+    max_depth=3,
+    min_samples_leaf=3,
+    subsample=0.8,
+    random_state=33,
     )
 
 
