@@ -9,3 +9,6 @@ mlflow
 optuna
 xgboost
 catboost
+fastapi==0.139.0
+pydantic==2.13.4
+uvicorn==0.51.0
