@@ -101,7 +101,7 @@ week_of_year
 The full-history branch uses the VIF-reduced feature set:
 
 ```text
-total_nominal_kg
+total_kg
 total_hours
 total_pallets
 orders
