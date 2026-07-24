@@ -7,6 +7,11 @@ try:
 except ImportError:
     CatBoostRegressor = None
 
+try:
+    from xgboost import XGBRegressor
+except ImportError:
+    XGBRegressor = None
+
 
 def build_dummy_model() -> DummyRegressor:
     """
@@ -93,6 +98,34 @@ def build_catboost_model():
     )
 
 
+def build_xgboost_model():
+    """
+    Build a regularized XGBoost regression model.
+
+    This model is added as an additional candidate only.
+    It does not replace or modify the existing baseline models.
+    """
+    if XGBRegressor is None:
+        raise ImportError(
+            "XGBoost is not installed. Install it with: python -m pip install xgboost"
+        )
+
+    return XGBRegressor(
+            
+        objective="reg:tweedie",
+        n_estimators=100,
+        learning_rate=0.05,
+        max_depth=2,
+        min_child_weight=3,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        reg_lambda=5.0,
+        random_state=33,
+        n_jobs=-1,
+    
+    )
+
+
 def get_model_builders() -> dict[str, callable]:
     """
     Return the available model builders for the first post-installation
@@ -108,5 +141,8 @@ def get_model_builders() -> dict[str, callable]:
 
     if CatBoostRegressor is not None:
         model_builders["catboost_regularized"] = build_catboost_model
+
+    if XGBRegressor is not None:
+        model_builders["xgboost_regularized"] = build_xgboost_model
 
     return model_builders

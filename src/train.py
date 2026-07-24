@@ -55,10 +55,10 @@ MLFLOW_EXPERIMENT_NAME = "Damavand Energy Forecasting"
 MODELING_VERSION = "0.3"
 
 RUN_NAMES = {
-    "full": "0.3 Full Feature Baseline With Tuned CatBoost Candidate",
-    "vif_auto_post_only": "0.3.1 VIF Auto Feature Set With Tuned CatBoost Candidate",
-    "reduced_without_total_kg": "0.3.2 Reduced Feature Set Without Total KG With Tuned CatBoost Candidate",
-    "domain_reduced_with_total_kg": "0.3.3 Domain Reduced Feature Set With Total KG With Tuned CatBoost Candidate",
+    "full": "0.4.1 XGBoost Tweedie Objective Candidate Comparison",
+    "vif_auto_post_only": "0.4.1 VIF Auto Feature Set With XGBoost Candidate",
+    "reduced_without_total_kg": "0.4.2 Reduced Feature Set Without Total KG With XGBoost Candidate",
+    "domain_reduced_with_total_kg": "0.4.3 Domain Reduced Feature Set With Total KG With XGBoost Candidate",
 }
 
 
@@ -351,7 +351,7 @@ def log_run_to_mlflow(
         mlflow.set_tag("raw_data_logged", "False")
         mlflow.set_tag(
             "training_info",
-            "Version 0.3 post-only forecasting experiment with named feature sets.",
+            "Version 0.4 post-only forecasting experiment with named feature sets.",
         )
 
         metric_names = [
