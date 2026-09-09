@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import argparse
 
 import pandas as pd
@@ -13,7 +13,7 @@ from src.preprocessing import clean_energy_dataset, validate_required_columns
 from src.settings import DATE_COL, FEATURE_COLUMNS, TARGET_COL
 
 
-DEFAULT_DATA_PATH = Path("data/processed/damavand.csv")
+DEFAULT_DATA_PATH = Path("data/processed/industrial_energy_daily.csv")
 DEFAULT_OUTPUT_PATH = Path("reports/multicollinearity_full_dataset_report.xlsx")
 
 
@@ -28,7 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--data-path",
         default=str(DEFAULT_DATA_PATH),
-        help="Path to the processed Damavand dataset.",
+        help="Path to the processed industrial energy dataset.",
     )
 
     parser.add_argument(

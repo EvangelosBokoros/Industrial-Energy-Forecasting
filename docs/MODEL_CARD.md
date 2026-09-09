@@ -1,8 +1,8 @@
-# Damavand Energy Forecasting Model Card
+# Industrial Energy Forecasting Model Card
 
 ## Model identification
 
-**Model name:** Damavand Daily Active Energy Forecasting Ensemble
+**Model name:** Industrial Daily Active Energy Forecasting Ensemble
 **Official forecasting version:** 2.0
 **Official post-selection evaluation:** 2.1
 **Status:** Validated release candidate
@@ -40,7 +40,7 @@ Version 2.0 defines the forecasting model and its selected ensemble weights. Ver
 
 ## Model summary
 
-The model forecasts daily active energy consumption for the Damavand industrial process using production, operational, and calendar variables.
+The model forecasts daily active energy consumption for an industrial manufacturing process using production, operational, and calendar variables.
 
 The ensemble was designed to combine two complementary signals:
 
@@ -51,9 +51,9 @@ The 70/30 weight was selected by validation MAE within a predefined post-only-do
 
 ## Development ownership and project context
 
-Senerqon provided the professional setting and the Damavand industrial use case. I independently designed and implemented the complete forecasting and ML engineering system represented in this repository, including modeling, validation, experiment tracking, ensemble governance, behavioral evaluation, API serving, safeguards, testing, containerization, observability, reproducibility and release hardening.
+My former employer provided the professional setting and the industrial manufacturing use case. I independently designed and implemented the complete forecasting and ML engineering system represented in this repository, including modeling, validation, experiment tracking, ensemble governance, behavioral evaluation, API serving, safeguards, testing, containerization, observability, reproducibility and release hardening.
 
-This model card describes the technical system and its evidence boundaries. It is not an official Damavand or Senerqon product statement.
+This model card describes the technical system and its evidence boundaries. It is not an official product statement of the industrial client or my former employer.
 
 ## Intended use
 
@@ -762,7 +762,7 @@ paired_local_sensitivity_delta_pct.png
 ### MLflow tracking
 
 ```text
-Experiment: Damavand Energy Forecasting
+Experiment: Industrial Energy Forecasting
 Version 2.1 run name: 2.1 Behavioral Scenario Evaluation and Synthetic Stress Test
 Run ID: c07bfa3a352f49e3b85bb838e62bdee7
 Tracking URI: sqlite:///mlflow.db

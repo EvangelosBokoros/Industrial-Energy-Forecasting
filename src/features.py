@@ -1,4 +1,4 @@
-import pandas as pd
+﻿import pandas as pd
 
 from src.settings import DATE_COL, FEATURE_COLUMNS, TARGET_COL
 
@@ -7,7 +7,7 @@ def add_calendar_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Add calendar-based features from the project date column.
 
-    The current Damavand dataset already contains these columns, but this
+    The current industrial energy dataset already contains these columns, but this
     function keeps the forecasting pipeline reproducible if calendar features
     need to be recreated later.
     """

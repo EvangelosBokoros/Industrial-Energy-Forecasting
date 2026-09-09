@@ -121,7 +121,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="Damavand Energy Forecasting API",
+    title="Industrial Energy Forecasting API",
     description=(
         "Daily active-energy forecasting using the official "
         "70% post-only Extra Trees and 30% full-history "

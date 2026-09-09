@@ -1,4 +1,4 @@
-import argparse
+﻿import argparse
 import inspect
 from pathlib import Path
 
@@ -42,7 +42,7 @@ from src.settings import (
 )
 
 
-DATA_PATH = Path("data/processed/damavand.csv")
+DATA_PATH = Path("data/processed/industrial_energy_daily.csv")
 
 REPORTS_DIR = Path("reports")
 FIGURES_BASE_DIR = REPORTS_DIR / "figures"
@@ -50,7 +50,7 @@ METADATA_DIR = REPORTS_DIR / "metadata"
 MODELS_DIR = Path("models")
 
 MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
-MLFLOW_EXPERIMENT_NAME = "Damavand Energy Forecasting"
+MLFLOW_EXPERIMENT_NAME = "Industrial Energy Forecasting"
 
 MODEL_TYPES = [
     "random_forest",
@@ -723,7 +723,7 @@ def log_run_to_mlflow(
         for parameter_name, parameter_value in model.get_params().items():
             mlflow.log_param(f"model__{parameter_name}", parameter_value)
 
-        mlflow.set_tag("project", "damavand_energy_forecasting")
+        mlflow.set_tag("project", "industrial_energy_forecasting")
         mlflow.set_tag("objective", "full_history_forecasting")
         mlflow.set_tag("run_type", run_config["run_type"])
         mlflow.set_tag("selection_stage", "validation")

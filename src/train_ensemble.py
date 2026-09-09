@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 from pathlib import Path
@@ -38,7 +38,7 @@ from src.settings import (
 )
 
 
-DATA_PATH = Path("data/processed/damavand.csv")
+DATA_PATH = Path("data/processed/industrial_energy_daily.csv")
 
 REPORT_PATH = Path("reports/ensemble_2_0_training_report.xlsx")
 MODEL_PATH = Path("models/ensemble_2_0_model.joblib")
@@ -48,7 +48,7 @@ FIGURES_DIR = Path("reports/figures/ensemble_2_0")
 RUN_NAME = "2.0 Post-Only and Full-History Ensemble Diagnostic"
 RUN_TYPE = "post_only_full_history_ensemble_diagnostic"
 MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
-MLFLOW_EXPERIMENT_NAME = "Damavand Energy Forecasting"
+MLFLOW_EXPERIMENT_NAME = "Industrial Energy Forecasting"
 
 
 def parse_args() -> argparse.Namespace:
@@ -351,7 +351,7 @@ def log_run_to_mlflow(
     with mlflow.start_run(run_name=RUN_NAME):
         mlflow.set_tags(
             {
-                "project": "damavand_energy_forecasting",
+                "project": "industrial_energy_forecasting",
                 "modeling_version": ENSEMBLE_VERSION,
                 "run_type": RUN_TYPE,
                 "objective": "ensemble_forecasting",

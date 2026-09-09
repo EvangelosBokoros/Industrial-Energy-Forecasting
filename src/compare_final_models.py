@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
@@ -32,7 +32,7 @@ from src.settings import (
 )
 
 
-DATA_PATH = Path("data/processed/damavand.csv")
+DATA_PATH = Path("data/processed/industrial_energy_daily.csv")
 
 REPORT_PATH = Path("reports/final_model_comparison.xlsx")
 FIGURES_DIR = Path("reports/figures/final_model_comparison")
@@ -452,13 +452,13 @@ def main() -> None:
         metrics_df=validation_metrics_df,
         metric_name="r2",
         output_path=FIGURES_DIR / "validation_r2_comparison.png",
-        title="Offline Champion-Challenger: Validation R²",
+        title="Offline Champion-Challenger: Validation RΒ²",
     )
     save_metric_bar_plot(
         metrics_df=test_metrics_df,
         metric_name="r2",
         output_path=FIGURES_DIR / "test_r2_comparison.png",
-        title="Offline Champion-Challenger: Test R²",
+        title="Offline Champion-Challenger: Test RΒ²",
     )
     save_test_prediction_plot(
         test_predictions_df=test_predictions_df,

@@ -1,4 +1,4 @@
-import argparse
+﻿import argparse
 from pathlib import Path
 
 import joblib
@@ -39,7 +39,7 @@ from src.splits import (
 )
 
 
-DATA_PATH = Path("data/processed/damavand.csv")
+DATA_PATH = Path("data/processed/industrial_energy_daily.csv")
 
 REPORTS_DIR = Path("reports")
 FIGURES_DIR = REPORTS_DIR / "figures"
@@ -51,7 +51,7 @@ FEATURE_LIST_PATH = METADATA_DIR / "post_only_features.txt"
 SELECTED_MODEL_PATH = MODELS_DIR / "post_only_model.joblib"
 
 MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
-MLFLOW_EXPERIMENT_NAME = "Damavand Energy Forecasting"
+MLFLOW_EXPERIMENT_NAME = "Industrial Energy Forecasting"
 MODELING_VERSION = "0.5"
 
 RUN_NAMES = {
@@ -67,7 +67,7 @@ def parse_args() -> argparse.Namespace:
     Parse command-line arguments.
     """
     parser = argparse.ArgumentParser(
-        description="Train the Damavand post-installation forecasting model."
+        description="Train the industrial post-installation forecasting model."
     )
 
     parser.add_argument(
@@ -343,7 +343,7 @@ def log_run_to_mlflow(
             else "feature_set_diagnostic"
         )
 
-        mlflow.set_tag("project", "damavand_energy_forecasting")
+        mlflow.set_tag("project", "industrial_energy_forecasting")
         mlflow.set_tag("objective", "post_installation_forecasting")
         mlflow.set_tag("run_type", run_type)
         mlflow.set_tag("selection_stage", "validation")

@@ -2,11 +2,11 @@
 
 ## Project objective
 
-This project develops a production-style applied machine learning workflow for industrial energy forecasting at Damavand.
+This project develops a production-style applied machine learning workflow for industrial energy forecasting for an industrial manufacturing client.
 
 The goal is to build an accurate and defensible forecasting model for daily active energy consumption using production, operational, and calendar data.
 
-The work uses a real industrial energy dataset from the Damavand case and is structured as an applied machine learning forecasting project: building candidate models, comparing modeling assumptions, rejecting weak approaches, tracking experiments, and documenting decisions under real data limitations.
+The work uses a real industrial energy dataset from the professional M&V project and is structured as an applied machine learning forecasting project: building candidate models, comparing modeling assumptions, rejecting weak approaches, tracking experiments, and documenting decisions under real data limitations.
 
 The objective is not simply to try many algorithms. The objective is to build a reproducible modeling process where each modeling decision is tested, compared, rejected, improved, or retained based on evidence.
 
@@ -14,9 +14,9 @@ The objective is not simply to try many algorithms. The objective is to build a 
 
 This document is the complete decision record for the project rather than a short project summary. It preserves successful experiments, rejected approaches, governance decisions, evidence boundaries, and the later engineering work required to turn the selected model into a reproducible forecasting service.
 
-The Damavand industrial setting also includes a separate professional Measurement & Verification project that I completed during my time at Senerqon. For that work, I created the daily analytical data foundation, developed and validated the CatBoost counterfactual baseline model, prepared the technical report, presented the methodology, and answered two rounds of reviewer questions.
+The industrial setting also includes a separate professional Measurement & Verification project that I completed during my time at my former employer. For that work, I created the daily analytical data foundation, developed and validated the CatBoost counterfactual baseline model, prepared the technical report, presented the methodology, and answered two rounds of reviewer questions.
 
-After leaving Senerqon, I independently developed the separate forecasting and MLOps project documented in this repository. The two projects share their industrial setting and curated daily data foundation, but they have different objectives, models, validation frameworks, and deliverables.
+After leaving my former employer, I independently developed the separate forecasting and MLOps project documented in this repository. The two projects share their industrial setting and curated daily data foundation, but they have different objectives, models, validation frameworks, and deliverables.
 
 Within the forecasting project represented by this repository, I independently designed and implemented the modeling workflow, validation strategy, experiment tracking, ensemble selection, behavioral evaluation, API, safeguards, tests, Docker packaging, operational metrics, clean-machine verification, release hardening, and documentation.
 
@@ -100,7 +100,7 @@ This project demonstrates:
 
 ## Why the first modeling phase uses only the post-installation period
 
-The broader Damavand case includes an intervention that may have changed the relationship between production activity and energy consumption. The intervention/installation event occurred on 2025-09-12. This creates a data-regime problem:
+The broader professional M&V case includes an intervention that may have changed the relationship between production activity and energy consumption. The intervention/installation event occurred on 2025-09-12. This creates a data-regime problem:
 
 * Pre-intervention data provides more historical training examples and may still capture underlying production–energy relationships that remain valid after the intervention.
 * Post-intervention data is more representative of the current operating regime.
@@ -180,7 +180,7 @@ Additional metrics are reported for context:
 The processed dataset is loaded from:
 
 ```text
-data/processed/damavand.csv
+data/processed/industrial_energy_daily.csv
 ```
 
 The target variable is:
@@ -2253,7 +2253,7 @@ The result is credible because:
 * the 60/40 result is documented as sensitivity rather than selected post-hoc
 * limitations from the short validation and test windows are documented clearly
 
-The selected 70/30 ensemble is therefore the strongest current forecasting candidate for the available Damavand dataset.
+The selected 70/30 ensemble is therefore the strongest current forecasting candidate for the available industrial energy dataset.
 
 It should be treated as a validated and defensible model within the available post-intervention evidence, not as a permanently final model. As more post-installation data becomes available, the ensemble weights should be revalidated.
 
@@ -2980,7 +2980,7 @@ The official Version 2.1 run was logged separately from candidate-model training
 
 ```text
 experiment:
-Damavand Energy Forecasting
+Industrial Energy Forecasting
 
 run name:
 2.1 Behavioral Scenario Evaluation and Synthetic Stress Test

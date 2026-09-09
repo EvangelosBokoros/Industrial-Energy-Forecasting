@@ -1,4 +1,4 @@
-import argparse
+﻿import argparse
 from pathlib import Path
 
 import joblib
@@ -32,7 +32,7 @@ from src.settings import (
 )
 
 
-DATA_PATH = Path("data/processed/damavand.csv")
+DATA_PATH = Path("data/processed/industrial_energy_daily.csv")
 
 REPORTS_DIR = Path("reports")
 FIGURES_BASE_DIR = REPORTS_DIR / "figures"
@@ -56,7 +56,7 @@ FULL_HISTORY_VIF_SELECTED_MODEL_PATH = (
 FULL_HISTORY_VIF_FIGURES_DIR = FIGURES_BASE_DIR / "full_history_vif_advanced_boosting"
 
 MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
-MLFLOW_EXPERIMENT_NAME = "Damavand Energy Forecasting"
+MLFLOW_EXPERIMENT_NAME = "Industrial Energy Forecasting"
 
 RUN_CONFIGS = {
     "full": {
@@ -89,7 +89,7 @@ def parse_args() -> argparse.Namespace:
     Parse command-line arguments.
     """
     parser = argparse.ArgumentParser(
-        description="Train the Damavand full-history forecasting model."
+        description="Train the industrial full-history forecasting model."
     )
 
     parser.add_argument(
@@ -440,7 +440,7 @@ def log_run_to_mlflow(
         for parameter_name, parameter_value in model.get_params().items():
             mlflow.log_param(f"model__{parameter_name}", parameter_value)
 
-        mlflow.set_tag("project", "damavand_energy_forecasting")
+        mlflow.set_tag("project", "industrial_energy_forecasting")
         mlflow.set_tag("objective", "full_history_forecasting")
         mlflow.set_tag("run_type", run_config["run_type"])
         mlflow.set_tag("selection_stage", "validation")

@@ -1,4 +1,4 @@
-# Damavand Energy Forecasting API Contract
+# Industrial Energy Forecasting API Contract
 
 ## Contract identification
 
@@ -13,7 +13,7 @@
 
 ## Purpose
 
-The API provides daily active-energy forecasts for the Damavand industrial process.
+The API provides daily active-energy forecasts for an industrial manufacturing process.
 
 The service uses the official weighted ensemble:
 
@@ -122,7 +122,7 @@ Returns basic application information.
 
 ```json
 {
-  "service": "Damavand Energy Forecasting API",
+  "service": "Industrial Energy Forecasting API",
   "api_version": "1.0.0",
   "documentation_url": "/docs",
   "health_url": "/health",

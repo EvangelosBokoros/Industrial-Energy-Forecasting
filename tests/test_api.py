@@ -1,4 +1,4 @@
-import json
+﻿import json
 import math
 
 import pytest
@@ -344,7 +344,7 @@ def test_root_endpoint_returns_service_navigation(client):
 
     assert response.status_code == 200
     assert response.json() == {
-        "service": "Damavand Energy Forecasting API",
+        "service": "Industrial Energy Forecasting API",
         "api_version": "1.0.0",
         "documentation_url": "/docs",
         "health_url": "/health",

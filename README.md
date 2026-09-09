@@ -1,8 +1,8 @@
-# Damavand Energy Forecasting Platform
+# Industrial Energy Forecasting Platform
 
 A production-style machine-learning system for daily industrial active-energy forecasting, independently developed after the completion of a professional Measurement & Verification engagement in the same industrial setting.
 
-This repository presents a separate forecasting and MLOps project that I designed and implemented after leaving Senerqon. It uses the curated daily analytical data foundation that I originally created for the Damavand M&V work, but it addresses a different objective, applies different models and validation rules, and delivers a complete forecasting API and release-engineering system.
+This repository presents a separate forecasting and MLOps project that I designed and implemented after leaving my former employer. It uses the curated daily analytical data foundation that I originally created for the professional M&V project, but it addresses a different objective, applies different models and validation rules, and delivers a complete forecasting API and release-engineering system.
 
 > **Current status:** release candidate<br>
 > **Official forecasting model:** Version 2.0<br>
@@ -11,13 +11,13 @@ This repository presents a separate forecasting and MLOps project that I designe
 
 ## Professional project context
 
-During my time at Senerqon, I independently completed the AI-based Measurement & Verification work for the Damavand project.
+During my time at my former employer, I independently completed the AI-based Measurement & Verification work for the professional M&V project.
 
 The client data was originally provided at production-order and batch level, while active-energy consumption was measured daily. I transformed those records into a unified daily analytical dataframe through temporal alignment, daily aggregation and operational feature engineering. I then developed and validated the CatBoost counterfactual baseline model, prepared the technical report, presented the methodology and answered two rounds of reviewer questions.
 
 The accepted M&V analysis estimated the counterfactual energy consumption that would have occurred without the intervention and verified savings of 11.89% against a guaranteed target of 10.10%. Acceptance of the technical submission was a critical milestone in formally closing the wider professional engagement.
 
-After leaving Senerqon, I independently developed the separate forecasting and MLOps project presented in this repository. The forecasting project uses the same curated daily data foundation because the underlying industrial source data had not changed, but it answers a different question and has its own model-development, validation, serving and governance lifecycle.
+After leaving my former employer, I independently developed the separate forecasting and MLOps project presented in this repository. The forecasting project uses the same curated daily data foundation because the underlying industrial source data had not changed, but it answers a different question and has its own model-development, validation, serving and governance lifecycle.
 
 | Project | Objective | Model and outcome |
 |---|---|---|
@@ -271,7 +271,7 @@ The local MLflow database and artifact store are intentionally excluded from the
 ### Experiment history
 
 <p align="center">
-  <img src="assets/mlflow-runs.png" alt="MLflow experiment history showing the progression of Damavand forecasting runs through Versions 2.0 and 2.1" width="100%">
+  <img src="assets/mlflow-runs.png" alt="MLflow experiment history showing the progression of industrial energy forecasting runs through Versions 2.0 and 2.1" width="100%">
 </p>
 
 <p align="center"><em>MLflow experiment history showing the progression from early baselines to the governed Version 2.0 model and Version 2.1 behavioral evaluation.</em></p>

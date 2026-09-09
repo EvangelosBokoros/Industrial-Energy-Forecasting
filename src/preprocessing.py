@@ -1,4 +1,4 @@
-import pandas as pd
+﻿import pandas as pd
 
 
 def validate_required_columns(df: pd.DataFrame, required_columns: list[str]) -> None:
@@ -18,7 +18,7 @@ def parse_date_column(df: pd.DataFrame, date_col: str) -> pd.DataFrame:
     """
     Parse the date column robustly.
 
-    The Damavand dataset uses European-style dates, so day-first parsing is
+    The industrial energy dataset uses European-style dates, so day-first parsing is
     attempted first. A non-day-first parse is also tested, and the version
     with more valid parsed dates is kept.
     """
@@ -51,7 +51,7 @@ def clean_energy_dataset(
     remove_zero_target: bool = True,
 ) -> pd.DataFrame:
     """
-    Clean the final Damavand forecasting dataset.
+    Clean the final industrial energy forecasting dataset.
 
     Steps:
     - parse date column

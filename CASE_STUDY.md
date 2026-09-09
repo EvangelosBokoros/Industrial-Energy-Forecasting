@@ -1,8 +1,8 @@
-# Damavand Professional M&V Case Study
+# Professional M&V Case Study
 
 ## AI-based baseline modeling and verified industrial energy savings
 
-This case study documents the professional Measurement & Verification (M&V) work I completed during my time at Senerqon for the Damavand industrial energy project.
+This case study documents the professional Measurement & Verification (M&V) work I completed during my time at my former employer for an industrial manufacturing client.
 
 The objective was to estimate the electrical energy consumption that would have occurred without the energy-saving intervention and use that counterfactual baseline to verify the achieved savings.
 
@@ -188,7 +188,7 @@ The analysis produced:
 
 The achieved saving therefore exceeded the guaranteed target.
 
-The Damavand reference letter independently confirms the use of an AI-based predictive energy model, describes its application to pre- and post-installation conditions, and states that the verified total energy saving across the facility reached **11.89%**, compared with a guaranteed performance target of **10.10%**.
+The industrial client's reference letter independently confirms the use of an AI-based predictive energy model, describes its application to pre- and post-installation conditions, and states that the verified total energy saving across the facility reached **11.89%**, compared with a guaranteed performance target of **10.10%**.
 
 ## 6. Technical review and defense
 
@@ -243,7 +243,7 @@ The professional M&V project and the forecasting project in this repository are 
 | Purpose | Counterfactual baseline and savings verification | Forward operational forecasting |
 | Main model | CatBoost | 70% post-only Extra Trees + 30% full-history AdaBoost |
 | Validation logic | Pre-intervention baseline validation for M&V | Intervention-aware chronological forecasting validation |
-| Delivery context | Professional project completed during my time at Senerqon | Independently developed after leaving Senerqon |
+| Delivery context | Professional project completed during my time at my former employer | Independently developed after leaving my former employer |
 | Shared element | Curated daily analytical data foundation | Curated daily analytical data foundation |
 
 The independent forecasting system reuses the daily analytical data foundation because the underlying industrial source data is the same, but it has its own model-development, validation, serving, testing, observability, and governance lifecycle.
@@ -259,20 +259,20 @@ For the forecasting project itself, see:
 
 The public repository includes the following redacted portfolio evidence for the professional M&V project:
 
-1. [Original model report — public redacted English portfolio version](docs/case_study/damavand-original-model-report.pdf)  
+1. [Original model report — public redacted English portfolio version](docs/case_study/industrial-original-model-report.pdf)  
    Documents the CatBoost baseline methodology, training and validation results, savings result, model code, execution outputs, and dataset-synthesis methodology.
 
-2. [Model-selection and methodology Q&A](docs/case_study/damavand-model-selection-methodology-qa.pdf)  
+2. [Model-selection and methodology Q&A](docs/case_study/industrial-model-selection-methodology-qa.pdf)  
    Documents the first technical review round, including model selection, hyperparameters, multicollinearity, VIF analysis, and baseline-model performance.
 
-3. [Validation and reviewer-response Q&A](docs/case_study/damavand-validation-review-qa.pdf)  
+3. [Validation and reviewer-response Q&A](docs/case_study/industrial-validation-review-qa.pdf)  
    Documents the second technical review round, including overfitting, validation leakage, reporting-period interpretation, uncertainty, sensitivity checks, and robustness of the savings conclusion.
 
-4. [Damavand reference letter — public redacted version](docs/case_study/damavand-reference-letter-redacted.pdf)  
+4. [Industrial client reference letter — public redacted version](docs/case_study/industrial-client-reference-letter-redacted.pdf)  
    Provides client-side confirmation of the AI-based predictive methodology and the verified **11.89%** total energy saving against the **10.10%** guaranteed target.
 
 ## Evidence and privacy note
 
 The public case-study documents are redacted portfolio versions. Detailed daily operational energy values, private communications, personal information, and other commercially sensitive material are intentionally excluded.
 
-The case-study evidence documents the professional M&V work. The separate forecasting and MLOps system in this repository was independently developed after my time at Senerqon.
+The case-study evidence documents the professional M&V work. The separate forecasting and MLOps system in this repository was independently developed after my time at my former employer.

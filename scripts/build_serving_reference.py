@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from pathlib import Path
@@ -10,7 +10,7 @@ from src.preprocessing import clean_energy_dataset
 from src.settings import DATE_COL, TARGET_COL
 
 
-DATA_PATH = Path("data/processed/damavand.csv")
+DATA_PATH = Path("data/processed/industrial_energy_daily.csv")
 OUTPUT_PATH = Path(
     "config/serving/input_reference.json"
 )

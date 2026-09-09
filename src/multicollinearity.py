@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import argparse
 
 import numpy as np
@@ -20,7 +20,7 @@ from src.settings import (
 from src.splits import create_post_split_masks
 
 
-DEFAULT_DATA_PATH = Path("data/processed/damavand.csv")
+DEFAULT_DATA_PATH = Path("data/processed/industrial_energy_daily.csv")
 DEFAULT_OUTPUT_PATH = Path("reports/multicollinearity_report.xlsx")
 
 
@@ -28,9 +28,9 @@ def calculate_single_vif(feature_df: pd.DataFrame, feature_name: str) -> float:
     """
     Calculate VIF for one feature.
 
-    VIF = 1 / (1 - R²)
+    VIF = 1 / (1 - RΒ²)
 
-    R² is calculated by predicting one feature from all other features.
+    RΒ² is calculated by predicting one feature from all other features.
     """
     y = feature_df[feature_name]
     X = feature_df.drop(columns=[feature_name])
@@ -157,7 +157,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--data-path",
         default=str(DEFAULT_DATA_PATH),
-        help="Path to the processed Damavand dataset.",
+        help="Path to the processed industrial energy dataset.",
     )
 
     parser.add_argument(

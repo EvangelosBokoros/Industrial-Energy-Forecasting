@@ -25,7 +25,7 @@ from src.settings import (
 )
 
 
-DATA_PATH = Path("data/processed/damavand.csv")
+DATA_PATH = Path("data/processed/industrial_energy_daily.csv")
 
 REPORT_PATH = Path(
     "reports/ensemble_2_1_behavioral_stress_test_report.xlsx"
@@ -35,7 +35,7 @@ FIGURES_DIR = Path(
 )
 
 MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
-MLFLOW_EXPERIMENT_NAME = "Damavand Energy Forecasting"
+MLFLOW_EXPERIMENT_NAME = "Industrial Energy Forecasting"
 MLFLOW_RUN_NAME = (
     "2.1 Behavioral Scenario Evaluation and Synthetic Stress Test"
 )
